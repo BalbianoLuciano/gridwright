@@ -1,13 +1,14 @@
 /**
- * Ley 1 — El workflow es estado en disco, no texto en un prompt.
+ * Law 1 — The workflow is state on disk, not text in a prompt.
  *
- * Ya se probó lo contrario: en prolicht hay un workflow de cinco fases escrito
- * en prosa y el agente se saltea la fase de análisis de similitud cada vez que
- * el pedido parece simple. Un prompt es una sugerencia; un prompt largo es una
- * sugerencia que además se diluye con el contexto.
+ * The opposite has already been tried: an earlier project has a five-phase
+ * workflow written in prose, and the agent skips the similarity-analysis phase
+ * every time the request looks simple. A prompt is a suggestion; a long prompt
+ * is a suggestion that also dilutes as context grows.
  *
- * Acá el orden no se persuade, se impone: `advance()` sólo acepta la etapa que
- * corresponde, y las obligatorias no se pueden saltear ni pidiéndolo.
+ * Here the order is not argued for, it is enforced: `advance()` only accepts
+ * the stage that is actually current, and the mandatory ones cannot be skipped
+ * even when explicitly asked.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 'node:fs'
@@ -21,10 +22,10 @@ export interface StageRecord {
   status: StageStatus
   startedAt?: string
   finishedAt?: string
-  /** Obligatorio para `skipped` y `failed`: una etapa que no corrió tiene que
-   *  decir por qué. No desaparece del historial. */
+  /** Required for `skipped` and `failed`: a stage that did not run has to say
+   *  why. It does not vanish from the history. */
   reason?: string
-  /** Datos que la etapa produjo y que las siguientes necesitan. */
+  /** Data the stage produced that later stages need. */
   output?: Record<string, unknown>
 }
 
@@ -35,7 +36,7 @@ export interface RunState {
   id: string
   mode: RunMode
   source: { url: string; fileKey: string; nodeId: string }
-  /** Nombre propuesto del componente. Se afina en `plan`. */
+  /** Proposed component name. Refined during `plan`. */
   name: string
   stage: Stage
   stages: Record<Stage, StageRecord>
@@ -43,7 +44,7 @@ export interface RunState {
   updatedAt: string
 }
 
-/** Lo que `gw next` le devuelve a Claude. Es el protocolo entero. */
+/** What `gw next` hands back to Claude. This is the whole protocol. */
 export interface Directive {
   run: string
   stage: Stage
@@ -51,8 +52,8 @@ export interface Directive {
   action: string
   inputs: Record<string, unknown>
   gate: string | null
-  /** Cuando la etapa todavía no está construida, se dice explícitamente en vez
-   *  de fingir que se ejecutó. */
+  /** When the stage is not built yet we say so explicitly instead of
+   *  pretending it ran. */
   blocked?: { reason: string; phase: number }
 }
 
@@ -74,7 +75,7 @@ export function newRunState(args: {
     mode: args.mode,
     source: { url: args.url, fileKey: args.fileKey, nodeId: args.nodeId },
     name: args.name,
-    // `init` es del proyecto, no de la corrida: un run arranca en fetch.
+    // `init` belongs to the project, not to the run: a run starts at fetch.
     stage: 'fetch',
     stages,
     createdAt: now,
@@ -95,7 +96,7 @@ export function loadState(root: string, id: string): RunState | null {
   return JSON.parse(readFileSync(path, 'utf8')) as RunState
 }
 
-/** Corridas ordenadas por actualización, la más reciente primero. */
+/** Runs ordered by update time, most recent first. */
 export function listRuns(root: string): RunState[] {
   const dir = paths.runs(root)
   if (!existsSync(dir)) return []
@@ -107,8 +108,8 @@ export function listRuns(root: string): RunState[] {
   return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
-/** La corrida abierta, si hay una. Es lo que el hook de SessionStart consulta
- *  para poder retomar después de un corte. */
+/** The open run, if there is one. This is what the SessionStart hook queries in
+ *  order to resume after an interruption. */
 export function activeRun(root: string): RunState | null {
   return listRuns(root).find((r) => r.stage !== 'report' || r.stages.report.status !== 'done') ?? null
 }
@@ -118,8 +119,9 @@ export function markRunning(state: RunState, stage: Stage): void {
 }
 
 /**
- * Cierra una etapa y mueve el puntero. No acepta cerrar una etapa que no es la
- * actual: si Claude intenta saltar de `fetch` a `author`, esto tira error.
+ * Closes a stage and moves the pointer. It refuses to close a stage that is not
+ * the current one: if Claude tries to jump from `fetch` to `author`, this
+ * throws.
  */
 export function advance(
   state: RunState,
@@ -128,23 +130,23 @@ export function advance(
 ): void {
   if (state.stage !== stage) {
     throw new Error(
-      `no se puede cerrar "${stage}": la corrida está en "${state.stage}". ` +
-        `Las etapas no se saltean (Ley 1).`,
+      `cannot close "${stage}": the run is at "${state.stage}". ` +
+        `Stages are not skipped (Law 1).`,
     )
   }
   if (result.status === 'skipped') {
     if (STAGE_SPECS[stage].mandatory) {
       throw new Error(
-        `"${stage}" es obligatoria y no se puede saltear. ` +
-          `Es una de las que construyen el sistema.`,
+        `"${stage}" is mandatory and cannot be skipped. ` +
+          `It is one of the stages that build the system.`,
       )
     }
     if (!result.reason) {
-      throw new Error(`saltear "${stage}" requiere un motivo: una etapa que no corrió tiene que decir por qué`)
+      throw new Error(`skipping "${stage}" requires a reason: a stage that did not run has to say why`)
     }
   }
   if (result.status === 'failed' && !result.reason) {
-    throw new Error(`marcar "${stage}" como fallida requiere un motivo`)
+    throw new Error(`marking "${stage}" as failed requires a reason`)
   }
 
   state.stages[stage] = {
@@ -155,14 +157,14 @@ export function advance(
     ...(result.output ? { output: result.output } : {}),
   }
 
-  if (result.status === 'failed') return // se queda en la etapa para reintentar
+  if (result.status === 'failed') return // stay on the stage so it can be retried
 
   const i = STAGES.indexOf(stage)
   if (i < STAGES.length - 1) state.stage = STAGES[i + 1]!
 }
 
 /**
- * El protocolo. Claude no decide qué etapa viene: se la pregunta a esto.
+ * The protocol. Claude does not decide which stage comes next: it asks this.
  */
 export function directive(state: RunState, root: string, inputs: Record<string, unknown> = {}): Directive {
   const stage = state.stage
@@ -173,11 +175,11 @@ export function directive(state: RunState, root: string, inputs: Record<string, 
     actor: spec.actor,
     action: spec.summary,
     inputs: { root, name: state.name, mode: state.mode, ...inputs },
-    gate: spec.gate ? 'Requiere aprobación humana antes de avanzar (Ley 5).' : null,
+    gate: spec.gate ? 'Requires human approval before advancing (Law 5).' : null,
   }
   if (!isImplemented(stage)) {
     base.blocked = {
-      reason: `La etapa "${stage}" entra en la fase ${spec.phase} de la spec y todavía no está construida.`,
+      reason: `Stage "${stage}" belongs to phase ${spec.phase} of the spec and is not built yet.`,
       phase: spec.phase,
     }
   }

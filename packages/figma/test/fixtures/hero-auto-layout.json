@@ -28,7 +28,7 @@
           "id": "3978:35302",
           "name": "Title",
           "type": "TEXT",
-          "characters": "Sobre nosotros",
+          "characters": "About us",
           "style": { "fontFamily": "Inter", "fontWeight": 700, "fontSize": 48, "lineHeightPx": 56 },
           "absoluteBoundingBox": { "x": 0, "y": 405, "width": 600, "height": 56 }
         }
@@ -38,7 +38,7 @@
       "id": "3978:35303",
       "name": "Description",
       "type": "TEXT",
-      "characters": "Fabricamos luminarias desde 1994.",
+      "characters": "We have been building lighting since 1994.",
       "style": { "fontFamily": "Inter", "fontWeight": 400, "fontSize": 16, "lineHeightPx": 24 },
       "absoluteBoundingBox": { "x": 0, "y": 480, "width": 600, "height": 24 }
     },

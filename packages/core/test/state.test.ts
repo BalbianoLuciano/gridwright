@@ -8,13 +8,13 @@ const make = (): RunState => newRunState({
   fileKey: 'X', nodeId: '1:2', name: 'HeroAboutUs',
 })
 
-describe('máquina de estados — Ley 1', () => {
-  it('una corrida arranca en fetch, no en init', () => {
-    // `init` es del proyecto, no de la corrida.
+describe('state machine — Law 1', () => {
+  it('a run starts at fetch, not at init', () => {
+    // `init` belongs to the project, not to the run.
     expect(make().stage).toBe('fetch')
   })
 
-  it('avanza en el orden de la spec', () => {
+  it('advances in the order the spec defines', () => {
     const s = make()
     advance(s, 'fetch', { status: 'done' })
     expect(s.stage).toBe('distill')
@@ -22,21 +22,22 @@ describe('máquina de estados — Ley 1', () => {
     expect(s.stage).toBe('resolve')
   })
 
-  // Es el punto entero de la ley: el orden no se persuade, se impone.
-  it('no deja cerrar una etapa que no es la actual', () => {
+  // This is the whole point of the law: the order is not argued for, it is
+  // enforced.
+  it('refuses to close a stage that is not the current one', () => {
     const s = make()
-    expect(() => advance(s, 'author', { status: 'done' })).toThrow(/no se puede cerrar/)
+    expect(() => advance(s, 'author', { status: 'done' })).toThrow(/cannot close/)
     expect(s.stage).toBe('fetch')
   })
 
-  it('una etapa fallida no mueve el puntero, para poder reintentar', () => {
+  it('a failed stage does not move the pointer, so it can be retried', () => {
     const s = make()
-    advance(s, 'fetch', { status: 'failed', reason: 'Figma devolvió 404' })
+    advance(s, 'fetch', { status: 'failed', reason: 'Figma returned 404' })
     expect(s.stage).toBe('fetch')
-    expect(s.stages.fetch.reason).toBe('Figma devolvió 404')
+    expect(s.stages.fetch.reason).toBe('Figma returned 404')
   })
 
-  it('saltear exige un motivo: una etapa que no corrió tiene que decir por qué', () => {
+  it('skipping demands a reason: a stage that did not run has to say why', () => {
     const s = make()
     advance(s, 'fetch', { status: 'done' })
     advance(s, 'distill', { status: 'done' })
@@ -44,20 +45,20 @@ describe('máquina de estados — Ley 1', () => {
     expect(() => advance(s, 'tokens', { status: 'skipped' })).toThrow()
   })
 
-  it('las obligatorias no se saltean ni con motivo', () => {
+  it('the mandatory ones cannot be skipped even with a reason', () => {
     const s = make()
     for (const st of ['fetch', 'distill', 'resolve'] as const) advance(s, st, { status: 'done' })
     expect(s.stage).toBe('tokens')
-    expect(() => advance(s, 'tokens', { status: 'skipped', reason: 'no hay tokens nuevos' }))
-      .toThrow(/obligatoria/)
+    expect(() => advance(s, 'tokens', { status: 'skipped', reason: 'no new tokens' }))
+      .toThrow(/mandatory/)
   })
 
-  it('las tres obligatorias son las que construyen el sistema', () => {
+  it('the three mandatory stages are the ones that build the system', () => {
     const mandatory = STAGES.filter((s) => STAGE_SPECS[s].mandatory)
     expect(mandatory).toEqual(['tokens', 'library:ensure', 'library:register'])
   })
 
-  it('los gates humanos son plan, tokens, golden — más init y library:ensure', () => {
+  it('the human gates are plan, tokens and golden', () => {
     const gates = STAGES.filter((s) => STAGE_SPECS[s].gate)
     expect(gates).toContain('plan')
     expect(gates).toContain('tokens')
@@ -65,28 +66,28 @@ describe('máquina de estados — Ley 1', () => {
   })
 })
 
-describe('protocolo — lo que Claude recibe de `gw next`', () => {
-  it('dice etapa, quién la ejecuta y si hay gate', () => {
+describe('protocol — what Claude gets back from `gw next`', () => {
+  it('states the stage, who runs it and whether there is a gate', () => {
     const d = directive(make(), '/repo')
     expect(d).toMatchObject({ run: 'hero-about-us-01', stage: 'fetch', actor: 'code' })
     expect(d.gate).toBeNull()
   })
 
-  it('marca gate en las etapas que lo tienen', () => {
+  it('flags the gate on the stages that have one', () => {
     const s = make()
     for (const st of ['fetch', 'distill', 'resolve'] as const) advance(s, st, { status: 'done' })
-    expect(directive(s, '/repo').gate).toMatch(/aprobación humana/)
+    expect(directive(s, '/repo').gate).toMatch(/human approval/)
   })
 
-  // No fingir que una etapa corrió es parte del contrato.
-  it('avisa explícitamente cuando la etapa todavía no está construida', () => {
+  // Not pretending a stage ran is part of the contract.
+  it('says explicitly when the stage is not built yet', () => {
     const s = make()
     for (const st of ['fetch', 'distill'] as const) advance(s, st, { status: 'done' })
     const d = directive(s, '/repo')
     expect(d.blocked?.phase).toBe(4)
   })
 
-  it('fetch y distill sí están construidas en la fase 1', () => {
+  it('fetch and distill are built in phase 1', () => {
     expect(isImplemented('fetch')).toBe(true)
     expect(isImplemented('distill')).toBe(true)
     expect(isImplemented('author')).toBe(false)

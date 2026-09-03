@@ -1,5 +1,5 @@
-/** Salida del CLI. Sin dependencias: los códigos ANSI son cuatro líneas y una
- *  librería de colores es una superficie de supply chain que no hace falta. */
+/** CLI output. No dependencies: the ANSI codes are four lines, and a colour
+ *  library is supply-chain surface we do not need. */
 
 const isTTY = process.stdout.isTTY && !process.env.NO_COLOR
 const c = (code: string) => (s: string) => (isTTY ? `\x1b[${code}m${s}\x1b[0m` : s)
@@ -23,22 +23,22 @@ export function fail(message: string, hint?: string): never {
 }
 
 /**
- * Ley 10.a — el secreto no pasa por el modelo.
+ * Law 10.a — the secret does not pass through the model.
  *
- * Este mensaje es deliberadamente una instrucción para la PERSONA, no algo que
- * el agente pueda ejecutar por su cuenta. Si Claude corriera `gw auth login`,
- * el token terminaría en el transcript, en el contexto y en la memoria
- * persistente, y habría que considerarlo comprometido.
+ * This message is deliberately an instruction for the PERSON, not something the
+ * agent can run on its own. If Claude ran `gw auth login`, the token would end
+ * up in the transcript, in the context and in persistent memory, and would have
+ * to be treated as compromised.
  */
 export function missingCredentials(): never {
-  console.error(`${red('✗')} Falta el token de Figma.\n`)
-  console.error(`  ${bold('Corré esto vos, en tu terminal:')}\n`)
+  console.error(`${red('✗')} Missing Figma token.\n`)
+  console.error(`  ${bold('Run this yourself, in your terminal:')}\n`)
   console.error(`      ${green('! gw auth login')}\n`)
-  console.error(dim('  En Claude Code el prefijo `!` ejecuta en tu shell, fuera de la'))
-  console.error(dim('  conversación. El token no tiene que pasar por el chat: si aparece'))
-  console.error(dim('  en un mensaje queda en el transcript.\n'))
-  console.error(dim('  Se saca de figma.com/developers/api#access-tokens con scope de'))
-  console.error(dim('  lectura (file_content:read).'))
+  console.error(dim('  In Claude Code the `!` prefix runs in your shell, outside the'))
+  console.error(dim('  conversation. The token must not go through the chat: once it is'))
+  console.error(dim('  in a message it is in the transcript.\n'))
+  console.error(dim('  Get one at figma.com/developers/api#access-tokens with read scope'))
+  console.error(dim('  (file_content:read).'))
   process.exit(1)
 }
 
@@ -46,18 +46,18 @@ const CTRL_C = '\u0003'
 const BACKSPACE = '\u007f'
 
 /**
- * Lee de stdin sin eco.
+ * Reads from stdin without echoing.
  *
- * Nunca aceptamos el token como argumento (`--token=figd_x`): un argumento
- * queda en el historial del shell y en la lista de procesos, que es
- * exactamente lo que estamos tratando de evitar.
+ * We never accept the token as an argument (`--token=figd_x`): an argument
+ * lands in the shell history and in the process list, which is exactly what we
+ * are trying to avoid.
  */
 export function promptSecret(question: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const stdin = process.stdin
 
     if (!stdin.isTTY) {
-      // Sin TTY (pipe, CI) leemos una línea normal: no hay eco que ocultar.
+      // No TTY (pipe, CI): read a plain line — there is no echo to hide.
       let data = ''
       stdin.setEncoding('utf8')
       stdin.on('data', (d) => (data += d))

@@ -1,11 +1,11 @@
 /**
- * Ley 9 — Toda regla ajustable es dato.
+ * Law 9 — Every tunable rule is data.
  *
- * Cambiar el umbral de fidelidad no puede requerir tocar el algoritmo de diff.
- * Todo lo que acá tiene un default es porque el default sirve, no porque no
- * importe.
+ * Changing the fidelity threshold must not require touching the diff
+ * algorithm. Everything here that has a default has one because the default is
+ * useful, not because the value does not matter.
  *
- * El token NUNCA va acá: este archivo se commitea (Ley 10.b).
+ * The token NEVER goes here: this file is committed (Law 10.b).
  */
 
 import { join } from 'node:path'
@@ -22,8 +22,8 @@ export interface Viewport {
 export interface GridwrightConfig {
   $schema?: string
   framework: Framework
-  /** Dónde vive la component library. Se crea si no existe (etapa
-   *  `library:ensure`), con lo mínimo: carpeta + barrel + registry. */
+  /** Where the component library lives. Created if missing (the
+   *  `library:ensure` stage), with the bare minimum: folder, barrel, registry. */
   library: {
     dir: string
     barrel: string
@@ -31,38 +31,38 @@ export interface GridwrightConfig {
   }
   assets: {
     dir: string
-    /** Cómo se referencia el asset desde el componente. `{path}` se reemplaza. */
+    /** How the asset is referenced from the component. `{path}` is replaced. */
     importPrefix: string
   }
   tokens: {
-    /** Dónde están declarados los tokens del proyecto.
-     *  `auto` los busca en vez de asumir la versión de la herramienta: prolicht
-     *  corre Tailwind 4.1.18 y a la vez tiene tailwind.config.js con
-     *  theme.extend. El mundo real mezcla las dos formas. */
+    /** Where the project's tokens are declared.
+     *  `auto` looks for them instead of assuming a tool version: a project can
+     *  run Tailwind 4 and still declare its tokens in a legacy
+     *  tailwind.config.js. The real world mixes both shapes. */
     target: 'auto' | 'tailwind-config' | 'tailwind-theme' | 'css-vars'
     file?: string
-    /** ΔE CIEDE2000 por debajo del cual dos colores son el mismo color.
-     *  1.0 es el umbral de "apenas perceptible" para un ojo entrenado. */
+    /** CIEDE2000 ΔE below which two colors are the same color. 1.0 is the
+     *  "just noticeable" threshold for a trained eye. */
     colorToleranceDeltaE: number
-    /** Cuántos tokens nuevos puede proponer una corrida antes de que sea señal
-     *  de que el diseño se salió del sistema y conviene frenar. */
+    /** How many new tokens a single run may propose before it is a sign that
+     *  the design drifted out of the system and it is worth stopping. */
     maxNewPerRun: number
   }
   verify: {
     viewports: Viewport[]
-    /** Ley 6. Los pesos suman 1. La estructural pesa la mitad porque es la
-     *  única sin ruido de rendering. */
+    /** Law 6. The weights add up to 1. Structural carries half because it is
+     *  the only dimension without rendering noise. */
     weights: { structural: number; chromatic: number; perceptual: number }
-    /** Score mínimo para aprobar, sobre el PEOR viewport, no el promedio. */
+    /** Minimum passing score, over the WORST viewport, not the average. */
     threshold: number
-    /** Tolerancia en píxeles para el matcheo de bounding boxes. */
+    /** Pixel tolerance when matching bounding boxes. */
     boxTolerancePx: number
     maxRefineIterations: number
   }
   distill: {
-    /** Cuántos nodos con posición absoluta se toleran antes de frenar. Si el
-     *  Figma no usa auto-layout no hay layout que extraer, y es preferible
-     *  frenar que generar doscientas líneas que parecen bien. */
+    /** How many absolutely positioned nodes are tolerated before halting. If
+     *  the Figma does not use auto-layout there is no layout to extract, and
+     *  halting beats emitting two hundred lines that merely look right. */
     maxAbsoluteNodes: number
     maxDepth: number
   }
@@ -111,8 +111,8 @@ export function loadConfig(root: string): GridwrightConfig | null {
   const path = configPath(root)
   if (!existsSync(path)) return null
   const parsed = JSON.parse(readFileSync(path, 'utf8')) as Partial<GridwrightConfig>
-  // Merge superficial por sección: permite un config mínimo en el repo sin
-  // tener que repetir todos los defaults.
+  // Shallow merge per section: lets a repo keep a minimal config without
+  // restating every default.
   return {
     ...DEFAULT_CONFIG,
     ...parsed,
@@ -130,22 +130,22 @@ export function writeConfig(root: string, config: GridwrightConfig): string {
   return path
 }
 
-/** Los pesos de verify tienen que sumar 1 o el score no significa nada. */
+/** The verify weights have to add up to 1 or the score means nothing. */
 export function validateConfig(c: GridwrightConfig): string[] {
   const errors: string[] = []
   const { structural, chromatic, perceptual } = c.verify.weights
   const sum = structural + chromatic + perceptual
   if (Math.abs(sum - 1) > 1e-6) {
-    errors.push(`verify.weights suma ${sum.toFixed(3)}, tiene que sumar 1`)
+    errors.push(`verify.weights adds up to ${sum.toFixed(3)}, it has to add up to 1`)
   }
   if (c.verify.threshold < 0 || c.verify.threshold > 100) {
-    errors.push(`verify.threshold ${c.verify.threshold} está fuera de 0-100`)
+    errors.push(`verify.threshold ${c.verify.threshold} is outside 0-100`)
   }
   if (c.verify.viewports.length === 0) {
-    errors.push('verify.viewports no puede estar vacío')
+    errors.push('verify.viewports cannot be empty')
   }
   if (c.verify.maxRefineIterations < 1) {
-    errors.push('verify.maxRefineIterations tiene que ser al menos 1')
+    errors.push('verify.maxRefineIterations has to be at least 1')
   }
   return errors
 }

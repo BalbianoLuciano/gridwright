@@ -1,16 +1,16 @@
 /**
- * Parseo de la URL de Figma. El extractor de prolicht hacía esto en bash con
- * sed; acá se valida de verdad porque un nodeId mal parseado produce un 404
- * que se confunde con un problema de permisos (ver errors.ts).
+ * Figma URL parsing. The earlier shell script did this with sed; here it is
+ * actually validated, because a mis-parsed nodeId produces a 404 that gets
+ * mistaken for a permissions problem (see errors.ts).
  */
 
 export interface FigmaRef { fileKey: string; nodeId: string }
 
 /**
- * Acepta la URL completa, o `fileKey nodeId` sueltos.
+ * Accepts the full URL.
  *
- * Figma usa `3978-35299` en la URL y `3978:35299` en la API. La conversión es
- * obligatoria: mandar el guión a la API devuelve un 404 silencioso.
+ * Figma uses `3978-35299` in the URL and `3978:35299` in the API. The
+ * conversion is mandatory: sending the hyphen to the API returns a silent 404.
  */
 export function parseFigmaUrl(input: string): FigmaRef {
   const trimmed = input.trim()
@@ -23,14 +23,14 @@ export function parseFigmaUrl(input: string): FigmaRef {
   }
   if (fileMatch && !nodeMatch) {
     throw new Error(
-      'La URL no trae `node-id`. En Figma seleccioná el frame y usá ' +
-        '"Copy link to selection" — el link de la barra de direcciones sin selección no sirve.',
+      'The URL has no `node-id`. In Figma, select the frame and use ' +
+        '"Copy link to selection" — the address bar URL without a selection will not do.',
     )
   }
   throw new Error(
-    `No pude parsear "${truncate(trimmed)}" como una URL de Figma.\n` +
-      'Esperaba algo como:\n' +
-      '  https://www.figma.com/design/<FILE_KEY>/<nombre>?node-id=3978-35299',
+    `Could not parse "${truncate(trimmed)}" as a Figma URL.\n` +
+      'Expected something like:\n' +
+      '  https://www.figma.com/design/<FILE_KEY>/<name>?node-id=3978-35299',
   )
 }
 
@@ -38,7 +38,7 @@ export function normalizeNodeId(id: string): string {
   return id.replace('-', ':')
 }
 
-/** El nodeId en el formato que usa la URL, para poder reconstruir el link. */
+/** The nodeId in the shape the URL uses, so the link can be rebuilt. */
 export function denormalizeNodeId(id: string): string {
   return id.replace(':', '-')
 }

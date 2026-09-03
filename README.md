@@ -1,31 +1,31 @@
 # Gridwright
 
-Pipeline end-to-end de maquetación. Entra un nodo de Figma, sale un componente
-construido, verificado visualmente y registrado en el design system del
-proyecto. Se opera desde Claude Code.
+End-to-end layout pipeline. A Figma node goes in; a built, visually verified
+component registered in the project's design system comes out. Driven from
+Claude Code.
 
-> **El diseño entra como nodo, sale como sistema.**
+> **The design comes in as a node and leaves as a system.**
 >
-> Gridwright no genera componentes: construye el design system del proyecto de a
-> un nodo por vez. Cada corrida deja el repo con más tokens resueltos, más
-> componentes registrados y más superficie verificada. Si un componente sale
-> bien pero no aportó nada al sistema, la corrida falló.
+> Gridwright does not generate components: it builds the project's design system
+> one node at a time. Every run leaves the repo with more resolved tokens, more
+> registered components and more verified surface. If a component turns out fine
+> but contributed nothing to the system, the run failed.
 
-**Estado: fase 1 de 5.** Andan `fetch` y `distill`. El resto de las etapas
-existen en la máquina de estados y se reportan explícitamente como no
-construidas, en vez de fingir que corrieron. Ver [el roadmap](#roadmap).
+**Status: phase 1 of 5.** `fetch` and `distill` work. The remaining stages exist
+in the state machine and are reported explicitly as not built, rather than
+pretending they ran. See the [roadmap](#roadmap).
 
 ---
 
-## La idea
+## The idea
 
-La tentación obvia es escribir un prompt largo que le explique a un agente cómo
-maquetar. Ya se probó: en un repo anterior hay un workflow de cinco fases escrito
-en prosa, y el agente se saltea la fase de análisis cada vez que el pedido parece
-simple. **Un prompt es una sugerencia.**
+The obvious temptation is to write a long prompt explaining to an agent how to
+build a layout. That has been tried: an earlier repo has a five-phase workflow
+written in prose, and the agent skips the analysis phase every time the request
+looks simple. **A prompt is a suggestion.**
 
-Gridwright invierte el reparto. La máquina de estados vive en disco y la hace
-cumplir un CLI. Claude no decide qué etapa viene: se la pregunta.
+Gridwright inverts the split. The state machine lives on disk and a CLI enforces
+it. Claude does not decide which stage comes next: it asks.
 
 ```console
 $ gw next --json
@@ -33,94 +33,94 @@ $ gw next --json
   "run": "hero-about-us-01",
   "stage": "author",
   "actor": "agent",
-  "action": "escribir el componente",
+  "action": "write the component",
   "inputs": { "ir": "…/ir.json", "reference": "…/reference.png" },
   "gate": null
 }
 ```
 
-Claude hace la parte creativa, escribe archivos y corre `gw verify`. Si el gate
-falla, la etapa sigue siendo `refine`. No hay forma de saltar a `golden` sin
-pasar, porque el CLI no lo permite. Si se corta la sesión, el estado sigue en
-`.gridwright/runs/<id>/state.json`.
+Claude does the creative part, writes files and runs `gw verify`. If the gate
+fails, the stage is still `refine`. There is no way to jump to `golden` without
+passing, because the CLI will not allow it. If the session drops, the state is
+still in `.gridwright/runs/<id>/state.json`.
 
-El reparto es explícito:
+The split is explicit:
 
-| Lo hace el código | Lo hace el modelo |
+| Code does this | The model does this |
 |---|---|
-| Traer el nodo, los assets y la referencia | Escribir el componente idiomático del repo |
-| Destilar el árbol al IR | Nombrar cosas, decidir la API de props |
-| Matchear y clasificar tokens | Nombrar los tokens nuevos |
-| Indexar componentes existentes | Decidir qué reutilizar |
-| Renderizar, medir, diffear | Interpretar el diff y corregir |
+| Pull the node, the assets and the reference | Write the component idiomatically for this repo |
+| Distill the tree into the IR | Name things, decide the prop API |
+| Match and classify tokens | Name the new tokens |
+| Index existing components | Decide what to reuse |
+| Render, measure, diff | Read the diff and fix it |
 
-Si se puede verificar con un assert, no lo hace el modelo. Si necesita criterio
-sobre el código que ya existe, no lo hace el programa.
+If it can be checked with an assert, the model does not do it. If it needs
+judgment about code that already exists, the program does not do it.
 
 ---
 
-## Instalación
+## Install
 
 ```bash
-npm i -g @gridwright/cli     # el motor
-gw auth login                # una vez por máquina
+npm i -g @gridwright/cli     # the engine
+gw auth login                # once per machine
 ```
 
-El token de Figma **lo tipeás vos, en tu terminal**. Nunca a través del agente:
-si aparece en un mensaje queda en el transcript, en el contexto y en la memoria
-persistente, y hay que considerarlo comprometido. Dentro de Claude Code, el
-prefijo `!` ejecuta en tu shell, fuera de la conversación:
+**You type the Figma token yourself, in your terminal.** Never through the
+agent: once it is in a message it is in the transcript, in the context and in
+persistent memory, and has to be treated as compromised. Inside Claude Code, the
+`!` prefix runs in your shell, outside the conversation:
 
 ```
 ! gw auth login
 ```
 
-`gw auth login` lee de stdin oculto y valida contra la API antes de guardar
-nada, en `~/.config/gridwright/credentials.json` con modo `0600`. No existe un
-flag `--token`: un argumento queda en el historial del shell y en `ps`.
+`gw auth login` reads from hidden stdin and validates against the API before
+saving anything, to `~/.config/gridwright/credentials.json` with mode `0600`.
+There is no `--token` flag: an argument lands in the shell history and in `ps`.
 
 ---
 
-## Uso
+## Usage
 
-En el repo donde va a vivir el componente:
+In the repo where the component will live:
 
 ```bash
-gw init                      # detecta framework, tokens y library. Una vez.
-gw build "https://www.figma.com/design/<KEY>/<nombre>?node-id=3978-35299"
+gw init                      # detects framework, tokens and library. Once.
+gw build "https://www.figma.com/design/<KEY>/<name>?node-id=3978-35299"
 ```
 
-`gw init` no pregunta lo que puede averiguar. El framework sale del
-`package.json`, y el destino de los tokens se **busca** en vez de asumirse: hay
-proyectos con Tailwind 4 que igual declaran sus tokens en un
-`tailwind.config.js` legacy. "Qué versión tenés instalada" y "dónde están
-declarados tus tokens" son preguntas distintas.
+`gw init` does not ask what it can find out. The framework comes from
+`package.json`, and the token destination is **searched for** rather than
+assumed: there are projects on Tailwind 4 that still declare their tokens in a
+legacy `tailwind.config.js`. "Which version do you have installed" and "where
+are your tokens declared" are different questions.
 
 ```console
 $ gw build "https://www.figma.com/design/D7qf…?node-id=3978-35299"
-✓ Corrida hero-about-us-01 — frame "Hero About Us" → HeroAboutUs
+✓ Run hero-about-us-01 — frame "Hero About Us" → HeroAboutUs
 → 3 assets
-    · hero-about-us.png 1440x405 · recortado 1440x512 → 1440x405
-→ IR: 4 nodos, 6 valores crudos (312KB → 4KB, 99% menos)
+    · hero-about-us.png 1440x405 · trimmed 1440x512 → 1440x405
+→ IR: 4 nodes, 6 raw values (312KB → 4KB, 99% smaller)
     hash a3f2c1d4e5b6
 ```
 
-| Comando | |
+| Command | |
 |---|---|
-| `gw build <url>` | abre una corrida y ejecuta hasta donde llegue |
-| `gw next [--json]` | qué etapa toca y quién la ejecuta — **el protocolo** |
-| `gw status` | corridas y en qué etapa está cada una |
-| `gw ir [<run>]` | imprime el IR |
-| `gw auth status` | qué credencial se está usando y de dónde salió |
+| `gw build <url>` | opens a run and executes as far as it goes |
+| `gw next [--json]` | which stage is up and who runs it — **the protocol** |
+| `gw status` | runs and the stage each one is on |
+| `gw ir [<run>]` | prints the IR |
+| `gw auth status` | which credential is in use and where it came from |
 
 ---
 
-## El IR
+## The IR
 
-El árbol crudo de un frame son 2.000 a 5.000 nodos. Meterlo en el contexto del
-modelo no es sólo caro: da **peor** resultado, porque se aferra a los
-`absoluteBoundingBox` que ve y escribe `position: absolute`. Entre Figma y el
-modelo va siempre la destilación.
+The raw tree of a frame is 2,000 to 5,000 nodes. Feeding it to the model is not
+just expensive: it produces **worse** results, because the model latches onto
+the `absoluteBoundingBox` values it sees and writes `position: absolute`. The
+distillation always sits between Figma and the model.
 
 ```json
 {
@@ -129,104 +129,106 @@ modelo va siempre la destilación.
   "tokens": { "bg": "#1a1a1a" },
   "children": [
     { "role": "image", "name": "Hero Background", "asset": "hero-background.png", "ratio": "32/9" },
-    { "role": "heading", "level": 1, "slot": "title", "default": "Sobre nosotros" }
+    { "role": "heading", "level": 1, "slot": "title", "default": "About us" }
   ],
   "warnings": [],
   "hash": "a3f2c1d4e5b6"
 }
 ```
 
-Dos de las traducciones son isomorfismos, no heurísticas:
+Two of the translations are isomorphisms, not heuristics:
 
-**Auto-layout es flex con gap.** `layoutMode` + `itemSpacing` +
-`primaryAxisAlignItems` mapea uno a uno a `flex-col gap-6 justify-*`. Efecto
-lateral valioso: gridwright **no puede** generar margins entre hermanos, porque
-Figma no le da esa información.
+**Auto-layout is flex with gap.** `layoutMode` + `itemSpacing` +
+`primaryAxisAlignItems` map one to one onto `flex-col gap-6 justify-*`. Valuable
+side effect: gridwright **cannot** generate margins between siblings, because
+Figma never gives it that information.
 
-**Los variants son props.** Un componente con `Size=Large, State=Hover` entrega
-la matriz sin inventar nada.
+**Variants are props.** A component with `Size=Large, State=Hover` hands over
+the matrix without anything being invented.
 
-Y un corolario incómodo: si el Figma no usa auto-layout, no hay layout que
-extraer. Eso no se arregla con mejor prompt. `distill` lo detecta y frena.
+And an uncomfortable corollary: if the Figma does not use auto-layout, there is
+no layout to extract. A better prompt will not fix that. `distill` detects it
+and halts.
 
 ```console
-✗ El IR no es utilizable.
+✗ The IR is not usable.
 
-  7 nodos están posicionados de forma absoluta (el máximo tolerado es 5).
-  Este frame no usa auto-layout, así que no hay layout que inferir.
-  Esto no se arregla con mejor prompt: se arregla en Figma.
+  7 nodes are absolutely positioned (the tolerated maximum is 5).
+  This frame does not use auto-layout, so there is no layout to infer.
+  A better prompt will not fix this: it gets fixed in Figma.
 ```
 
 ---
 
-## Verificación
+## Verification
 
-El motor de texto de Figma y el de Chromium hacen kerning y antialiasing
-distintos: un componente **perfecto** da 3–8% de píxeles diferentes. Un umbral
-de diff crudo al 1% no se alcanza nunca, y al 10% pasa cualquier cosa. Por eso
-el score es compuesto:
+Figma's text engine and Chromium's differ in kerning and antialiasing: a
+**perfect** component comes out 3–8% different at the pixel level. A raw diff
+threshold at 1% is never reached, and at 10% anything passes. Hence a composite
+score:
 
-| Dimensión | Peso | Cómo se mide | Ruido |
+| Dimension | Weight | How it is measured | Noise |
 |---|---|---|---|
-| Estructural | 50% | bounding boxes, tolerancia ±2px | ninguno |
-| Cromática | 25% | muestreo de color, ΔE | ninguno |
-| Perceptual | 25% | diff de píxeles con máscara sobre el texto | alto |
+| Structural | 50% | bounding boxes, ±2px tolerance | none |
+| Chromatic | 25% | colour sampling, ΔE | none |
+| Perceptual | 25% | pixel diff with a mask over text | high |
 
-Umbral **90%**, sobre el **peor viewport, no el promedio**: si rompe en mobile,
-rompe. Cuando no llega, el refine no es "intentá de nuevo" — recibe qué falló y
-dónde, que es lo que hace que converja en dos iteraciones en vez de quemar
-tokens hasta el tope.
+Threshold **90%**, over the **worst viewport, not the average**: if it breaks on
+mobile, it is broken. When it falls short, refine is not "try again" — it
+receives what failed and where, which is what makes it converge in two
+iterations instead of burning tokens up to the cap.
 
 ---
 
-## Las etapas
+## The stages
 
-| # | Etapa | Quién | Gate |
+| # | Stage | Who | Gate |
 |---|---|---|---|
-| — | `auth` | la persona | precondición, una vez por máquina |
-| 0 | `init` | humano | una vez por proyecto |
-| 1 | `fetch` | código | |
-| 2 | `distill` | código | frena si el IR sale pobre |
-| 3 | `resolve` | código | |
-| 4 | **`tokens`** | código + modelo | **humano** · obligatoria |
-| 5 | **`library:ensure`** | código | **humano 1ª vez** · obligatoria |
-| 6 | `survey` | código | |
-| 7 | `plan` | modelo | **humano** |
-| 8 | `author` | modelo | |
-| 9 | `harness` | código | |
-| 10 | `verify` | código | score ≥ 90 |
-| 11 | `refine` | modelo | tope 4 iteraciones |
-| 12 | `golden` | humano | **humano** |
-| 13 | **`library:register`** | código | obligatoria |
-| 14 | `report` | código | |
+| — | `auth` | the person | precondition, once per machine |
+| 0 | `init` | human | once per project |
+| 1 | `fetch` | code | |
+| 2 | `distill` | code | halts if the IR comes out poor |
+| 3 | `resolve` | code | |
+| 4 | **`tokens`** | code + model | **human** · mandatory |
+| 5 | **`library:ensure`** | code | **human, first time** · mandatory |
+| 6 | `survey` | code | |
+| 7 | `plan` | model | **human** |
+| 8 | `author` | model | |
+| 9 | `harness` | code | |
+| 10 | `verify` | code | score ≥ 90 |
+| 11 | `refine` | model | cap of 4 iterations |
+| 12 | `golden` | human | **human** |
+| 13 | **`library:register`** | code | mandatory |
+| 14 | `report` | code | |
 
-Tres gates humanos: `plan`, `tokens` y `golden`. Nada que mute el proyecto se
-escribe sin aprobación. Un componente mal generado se reescribe en diez minutos;
-un sistema de tokens contaminado se hereda para siempre.
+Three human gates: `plan`, `tokens` and `golden`. Nothing that mutates the
+project is written without approval. A badly generated component is rewritten in
+ten minutes; a contaminated token system is inherited forever.
 
-Y fijate el orden de 4 y 8: **los tokens se escriben antes que el componente.**
-Al revés, el modelo escribe `bg-[#1a1a1a]` y después hay que refactorizar.
+And note the ordering of 4 and 8: **tokens are written before the component.**
+The other way round, the model writes `bg-[#1a1a1a]` and someone has to
+refactor.
 
 ---
 
 ## Roadmap
 
-| Fase | Qué | Estado |
+| Phase | What | Status |
 |---|---|---|
-| 0 | La spec | ✅ [`specs/001-pipeline.md`](specs/001-pipeline.md) |
-| 1 | CLI, máquina de estados, `fetch`, `distill` | ✅ |
-| 2 | `verify` con Playwright, sobre un componente escrito a mano | ⬜ |
-| 3 | Plugin de Claude Code, `author`, `refine` | ⬜ |
+| 0 | The spec | ✅ [`specs/001-pipeline.md`](specs/001-pipeline.md) |
+| 1 | CLI, state machine, `fetch`, `distill` | ✅ |
+| 2 | `verify` with Playwright, on a hand-written component | ⬜ |
+| 3 | Claude Code plugin, `author`, `refine` | ⬜ |
 | 4 | `tokens`, `library`, `golden`, dashboard | ⬜ |
-| 5 | Modo vista: `survey` y composición | ⬜ |
+| 5 | View mode: `survey` and composition | ⬜ |
 
-**La fase 2 va antes que la 3 a propósito.** Si no sabés medir, no podés cerrar
-el loop: un pipeline generativo sin métrica calibrada es un generador de texto
-con pasos extra. Primero la regla, después la fábrica.
+**Phase 2 comes before phase 3 on purpose.** If you cannot measure, you cannot
+close the loop: a generative pipeline without a calibrated metric is a text
+generator with extra steps. The ruler first, then the factory.
 
 ---
 
-## Desarrollo
+## Development
 
 ```bash
 pnpm install
@@ -237,22 +239,22 @@ pnpm build
 
 ```
 packages/
-├── core/     tipos del IR, máquina de estados, config, credenciales
-├── figma/    cliente API, distill, extracción de assets
-└── cli/      el binario `gw`
+├── core/     IR types, state machine, config, credentials
+├── figma/    API client, distill, asset extraction
+└── cli/      the `gw` binary
 ```
 
-Los tests de `distill` corren contra fixtures con la forma real de la API de
-Figma, incluido un frame sin auto-layout que **debe** hacer frenar al pipeline.
+The `distill` tests run against fixtures shaped like real Figma API responses,
+including a frame without auto-layout that **must** make the pipeline halt.
 
-## No-objetivos
+## Non-goals
 
-- No genera diseño. Traduce el que existe.
-- No arregla un Figma mal hecho. Lo detecta y lo reporta.
-- No hace data fetching, routing ni lógica de negocio.
-- No busca pixel-perfect.
-- No publica, no commitea, no pushea nada por su cuenta.
+- It does not generate design. It translates the design that exists.
+- It does not fix a badly built Figma. It detects and reports it.
+- No data fetching, routing or business logic.
+- It does not chase pixel-perfect.
+- It does not publish, commit or push anything on its own.
 
-## Licencia
+## License
 
 MIT

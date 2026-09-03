@@ -1,10 +1,10 @@
 /**
- * Layout de `.gridwright/` en el proyecto consumidor.
+ * Layout of `.gridwright/` inside the consuming project.
  *
- * No es todo descartable ni todo versionable: `runs/` y `dashboard/` son
- * andamio, `baselines/` es código de test (Ley 7) y se commitea. Si los
- * baselines no están en el repo, la suite de regresión no existe para nadie
- * más que quien la corrió.
+ * It is neither all disposable nor all versionable: `runs/` and `dashboard/`
+ * are scaffolding, `baselines/` is test code (Law 7) and gets committed. If the
+ * baselines are not in the repo, the regression suite does not exist for anyone
+ * but whoever ran it.
  */
 
 import { join } from 'node:path'
@@ -21,14 +21,14 @@ export const paths = {
   reference: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'reference.png'),
   runAssets: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'assets'),
   manifest: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'manifest.json'),
-  // baselines vive fuera de runs/ justamente porque sobrevive a la corrida
+  // baselines lives outside runs/ precisely because it outlives the run
   baselines: (r: string) => join(r, GW_DIR, 'baselines'),
   dashboard: (r: string) => join(r, GW_DIR, 'dashboard'),
 }
 
-/** Lo que `gw init` escribe en el .gitignore del proyecto. */
+/** What `gw init` appends to the project's .gitignore. */
 export const GITIGNORE_BLOCK = `
-# gridwright — runs y dashboard son andamio; baselines son tests
+# gridwright — runs and dashboard are scaffolding; baselines are tests
 ${GW_DIR}/runs/
 ${GW_DIR}/dashboard/
 `

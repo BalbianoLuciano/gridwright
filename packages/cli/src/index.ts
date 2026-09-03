@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * `gw` — el motor del pipeline.
+ * `gw` — the pipeline engine.
  *
- * Parseo de argumentos a mano y a propósito: son cuarenta líneas, y cada
- * dependencia de un binario que maneja un token es superficie de supply chain
- * que hay que justificar.
+ * Argument parsing is hand-rolled on purpose: it is forty lines, and every
+ * dependency in a binary that handles a token is supply-chain surface that has
+ * to be justified.
  */
 
 import { authLogin, authStatus, authLogout } from './commands/auth.js'
@@ -15,23 +15,23 @@ import { FigmaError } from '@gridwright/figma'
 
 const HELP = `${bold('gw')} — gridwright
 
-  ${bold('Precondición')}
-    gw auth login              guardar el token de Figma (${dim('correlo vos, no el agente')})
-    gw auth status             ver qué credencial se está usando
-    gw auth logout             borrar la credencial guardada
+  ${bold('Precondition')}
+    gw auth login              save the Figma token (${dim('you run this, not the agent')})
+    gw auth status             show which credential is in use
+    gw auth logout             remove the saved credential
 
-  ${bold('Proyecto')}
-    gw init [--force]          configurar este repo
+  ${bold('Project')}
+    gw init [--force]          configure this repo
 
-  ${bold('Corrida')}
-    gw build <url-figma>       abrir una corrida y ejecutar hasta donde llegue
-      --view                   modo vista en lugar de componente
-    gw next [--json]           qué etapa toca y quién la ejecuta
-    gw status [--json]         corridas y en qué etapa está cada una
-    gw ir [<run-id>]           imprimir el IR de una corrida
+  ${bold('Run')}
+    gw build <figma-url>       open a run and execute as far as it goes
+      --view                   view mode instead of component mode
+    gw next [--json]           which stage is up and who runs it
+    gw status [--json]         runs and the stage each one is on
+    gw ir [<run-id>]           print a run's IR
 
-  ${dim('Fase 1 de specs/001-pipeline.md: fetch y distill.')}
-  ${dim('Las etapas de fases 2-5 se reportan como no implementadas.')}
+  ${dim('Phase 1 of specs/001-pipeline.md: fetch and distill.')}
+  ${dim('Stages from phases 2-5 are reported as not implemented.')}
 `
 
 interface Args {
@@ -65,7 +65,7 @@ async function main(): Promise<void> {
       if (args.sub === 'login') return authLogin()
       if (args.sub === 'status' || !args.sub) return authStatus(root)
       if (args.sub === 'logout') return authLogout()
-      return fail(`\`gw auth ${args.sub}\` no existe.`, 'Opciones: login, status, logout')
+      return fail(`\`gw auth ${args.sub}\` does not exist.`, 'Options: login, status, logout')
 
     case 'init':
       return init(root, { force: args.flags.has('force') })
@@ -74,9 +74,9 @@ async function main(): Promise<void> {
       const url = args.positional[0]
       if (!url) {
         return fail(
-          'Falta la URL de Figma.',
-          'gw build "https://www.figma.com/design/<KEY>/<nombre>?node-id=3978-35299"\n' +
-            'En Figma: seleccioná el frame y usá "Copy link to selection".',
+          'Missing the Figma URL.',
+          'gw build "https://www.figma.com/design/<KEY>/<name>?node-id=3978-35299"\n' +
+            'In Figma: select the frame and use "Copy link to selection".',
         )
       }
       return build(root, url, { mode: args.flags.has('view') ? 'view' : 'component' })
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
       return
 
     default:
-      return fail(`\`gw ${args.cmd}\` no existe.`, `Probá ${green('gw help')}.`)
+      return fail(`\`gw ${args.cmd}\` does not exist.`, `Try ${green('gw help')}.`)
   }
 }
 

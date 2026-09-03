@@ -1,9 +1,9 @@
 /**
- * Cliente de la API de Figma.
+ * Figma API client.
  *
- * Ley 10.c: el token no toca ningún artefacto de la corrida, y las URLs
- * firmadas con las que Figma sirve los assets tampoco se persisten. Son
- * credenciales temporales con patas: se consumen y se descartan.
+ * Law 10.c: the token never touches a run artifact, and neither do the signed
+ * URLs Figma serves assets from. Those are temporary credentials with legs:
+ * they get consumed and dropped.
  */
 
 import { mask } from '@gridwright/core'
@@ -14,8 +14,8 @@ const API = 'https://api.figma.com/v1'
 
 export interface ClientOptions {
   token: string
-  /** Reintentos ante 429 y errores de red. El 429 no es un fallo: es Figma
-   *  pidiendo que bajes el ritmo. */
+  /** Retries on 429 and network errors. A 429 is not a failure: it is Figma
+   *  asking you to slow down. */
   maxRetries?: number
   fetchImpl?: typeof fetch
 }
@@ -31,7 +31,7 @@ export class FigmaClient {
     this.doFetch = opts.fetchImpl ?? fetch
   }
 
-  /** Nunca imprimir el token entero, ni en debug. */
+  /** Never print the whole token, not even when debugging. */
   get maskedToken(): string {
     return mask(this.token)
   }
@@ -51,7 +51,7 @@ export class FigmaClient {
 
       if (res.status === 429) {
         if (attempt === this.maxRetries) throw describeStatus(429, context)
-        // Respetamos Retry-After si viene; si no, backoff exponencial.
+        // Honour Retry-After when present; otherwise exponential backoff.
         const retryAfter = Number(res.headers.get('retry-after'))
         await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : backoffMs(attempt))
         continue
@@ -61,14 +61,14 @@ export class FigmaClient {
       return (await res.json()) as T
     }
     throw new FigmaError(
-      `No pude contactar a la API de Figma después de ${this.maxRetries + 1} intentos.`,
+      `Could not reach the Figma API after ${this.maxRetries + 1} attempts.`,
       0,
       lastError instanceof Error ? lastError.message : undefined,
     )
   }
 
-  /** Se llama al guardar el token, no al usarlo: guardar uno inválido y
-   *  descubrirlo tres etapas después es la peor UX posible. */
+  /** Called when the token is saved, not when it is used: saving an invalid
+   *  token and finding out three stages later is the worst possible UX. */
   async me(): Promise<FigmaMe> {
     return this.get<FigmaMe>('/me')
   }
@@ -80,21 +80,22 @@ export class FigmaClient {
     )
     const entry = res.nodes?.[nodeId]
     if (!entry?.document) {
-      // La API devuelve 200 con `nodes: {}` cuando el id no existe pero el
-      // archivo sí. Es distinto del 404 y hay que decirlo distinto.
+      // The API answers 200 with `nodes: {}` when the id is missing but the
+      // file is not. That is different from a 404 and deserves a different
+      // message.
       throw new FigmaError(
-        `El archivo existe pero no tiene ningún nodo ${nodeId}.`,
+        `The file exists but has no node ${nodeId}.`,
         200,
-        'Suele ser un node-id de otra página del archivo, o un frame que se borró. ' +
-          'Volvé a copiar el link con "Copy link to selection".',
+        'Usually a node-id from another page of the file, or a frame that was deleted. ' +
+          'Copy the link again with "Copy link to selection".',
       )
     }
     return { document: entry.document, fileName: res.name }
   }
 
   /**
-   * Devuelve URLs firmadas y temporales. Quien las consuma tiene que bajarlas
-   * en el momento: NO se guardan en el manifest ni en el estado (Ley 10.c).
+   * Returns signed, temporary URLs. Callers must download them right away:
+   * they are NOT stored in the manifest or in the run state (Law 10.c).
    */
   async imageUrls(
     fileKey: string,
@@ -106,14 +107,14 @@ export class FigmaClient {
     const format = opts.format ?? 'png'
     const out = new Map<string, string>()
 
-    // La API corta pedidos muy largos; de a tandas.
+    // The API rejects very long requests; batch them.
     for (const batch of chunk(nodeIds, 40)) {
       const ids = batch.map(encodeURIComponent).join(',')
       const res = await this.get<FigmaImagesResponse>(
         `/images/${fileKey}?ids=${ids}&format=${format}&scale=${scale}`,
         { fileKey },
       )
-      if (res.err) throw new FigmaError(`Figma no pudo exportar las imágenes: ${res.err}`, 200)
+      if (res.err) throw new FigmaError(`Figma could not export the images: ${res.err}`, 200)
       for (const [id, url] of Object.entries(res.images ?? {})) {
         if (url) out.set(id, url)
       }

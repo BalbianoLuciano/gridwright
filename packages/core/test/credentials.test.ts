@@ -24,54 +24,55 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-describe('credenciales — Ley 10', () => {
-  it('sin nada configurado devuelve null, no un string vacío', () => {
+describe('credentials — Law 10', () => {
+  it('returns null when nothing is configured, not an empty string', () => {
     expect(resolveCredentials(dir)).toBeNull()
   })
 
-  it('la variable de entorno gana sobre todo', () => {
-    saveCredentials('figd_delarchivo')
-    writeFileSync(join(dir, '.env'), 'FIGMA_TOKEN="figd_deldotenv"\n')
-    process.env.FIGMA_TOKEN = 'figd_delentorno'
-    expect(resolveCredentials(dir)).toEqual({ figmaToken: 'figd_delentorno', origin: 'env' })
+  it('the environment variable wins over everything', () => {
+    saveCredentials('figd_fromfile')
+    writeFileSync(join(dir, '.env'), 'FIGMA_TOKEN="figd_fromdotenv"\n')
+    process.env.FIGMA_TOKEN = 'figd_fromenv'
+    expect(resolveCredentials(dir)).toEqual({ figmaToken: 'figd_fromenv', origin: 'env' })
   })
 
-  it('el .env del proyecto gana sobre el config de la máquina', () => {
-    saveCredentials('figd_delarchivo')
-    writeFileSync(join(dir, '.env'), "FIGMA_TOKEN='figd_deldotenv'\n")
-    expect(resolveCredentials(dir)).toEqual({ figmaToken: 'figd_deldotenv', origin: 'project-dotenv' })
+  it("the project's .env wins over the machine config", () => {
+    saveCredentials('figd_fromfile')
+    writeFileSync(join(dir, '.env'), "FIGMA_TOKEN='figd_fromdotenv'\n")
+    expect(resolveCredentials(dir)).toEqual({ figmaToken: 'figd_fromdotenv', origin: 'project-dotenv' })
   })
 
-  it('el caso normal: vive una vez en la máquina', () => {
-    saveCredentials('figd_delarchivo')
-    expect(resolveCredentials(dir)).toEqual({ figmaToken: 'figd_delarchivo', origin: 'user-config' })
+  it('the normal case: it lives once per machine', () => {
+    saveCredentials('figd_fromfile')
+    expect(resolveCredentials(dir)).toEqual({ figmaToken: 'figd_fromfile', origin: 'user-config' })
   })
 
-  it('lee el .env sin contaminar process.env', () => {
+  it('reads the .env without polluting process.env', () => {
     writeFileSync(join(dir, '.env'), 'FIGMA_TOKEN=figd_x\n')
     resolveCredentials(dir)
-    // Si lo metiéramos en el entorno se filtraría a todo subproceso que lancemos.
+    // Putting it in the environment would leak it into every child process we
+    // spawn.
     expect(process.env.FIGMA_TOKEN).toBeUndefined()
   })
 
-  it('guarda con permisos 0600', () => {
-    saveCredentials('figd_secreto')
+  it('saves with 0600 permissions', () => {
+    saveCredentials('figd_secret')
     expect(statSync(credentialsPath()).mode & 0o777).toBe(0o600)
   })
 
-  it('unas credenciales corruptas se tratan como ausentes', () => {
+  it('corrupt credentials are treated as absent', () => {
     saveCredentials('figd_x')
-    writeFileSync(credentialsPath(), 'no soy json')
-    // Mejor pedirlas de nuevo que morir con un JSON.parse críptico tres etapas
-    // más adelante.
+    writeFileSync(credentialsPath(), 'not json')
+    // Better to ask again than to die with a cryptic JSON.parse three stages
+    // down the line.
     expect(resolveCredentials(dir)).toBeNull()
   })
 
-  it('el enmascarado no deja recuperar el token', () => {
+  it('masking does not let the token be recovered', () => {
     const token = 'figd_abcdefghijklmnopqrstuvwxyz'
     const masked = mask(token)
     expect(masked).not.toContain('abcdefghij')
     expect(masked).toBe('figd_…wxyz')
-    expect(mask('corto')).toBe('****')
+    expect(mask('short')).toBe('****')
   })
 })

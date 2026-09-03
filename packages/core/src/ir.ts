@@ -1,42 +1,42 @@
 /**
- * El IR — Intermediate Representation.
+ * The IR — Intermediate Representation.
  *
- * Ley 2 de la spec: el árbol crudo de Figma nunca toca el LLM. Un frame real
- * son 2.000 a 5.000 nodos con coordenadas absolutas; esto es su destilación
- * semántica, del orden de 120 líneas.
+ * Law 2 of the spec: the raw Figma tree never reaches the LLM. A real frame is
+ * 2,000 to 5,000 nodes with absolute coordinates; this is its semantic
+ * distillation, on the order of 120 lines.
  *
- * El motivo no es sólo costo de contexto. Con el árbol crudo el modelo se
- * aferra a los `absoluteBoundingBox` que ve y escribe `position: absolute`.
- * Menos información bien elegida produce mejor código que más información
- * cruda.
+ * The reason is not only context cost. Given the raw tree the model latches
+ * onto the `absoluteBoundingBox` values it sees and writes `position: absolute`.
+ * Less information, well chosen, produces better code than more raw
+ * information.
  */
 
-/** Cómo se acomodan los hijos. `absolute` es una derrota: significa que el
- *  diseño no usó auto-layout y no hay layout que inferir. */
+/** How children are arranged. `absolute` is a defeat: it means the design did
+ *  not use auto-layout and there is no layout to infer. */
 export type LayoutKind = 'flex' | 'grid' | 'absolute' | 'none'
 
 export type Axis = 'row' | 'col'
 
-/** Se mapean desde `primaryAxisAlignItems` / `counterAxisAlignItems` de Figma. */
+/** Mapped from Figma's `primaryAxisAlignItems` / `counterAxisAlignItems`. */
 export type Align = 'start' | 'center' | 'end' | 'stretch' | 'baseline'
 export type Justify = 'start' | 'center' | 'end' | 'between' | 'around' | 'evenly'
 
 export interface IRLayout {
   kind: LayoutKind
   dir?: Axis
-  /** `itemSpacing` de Figma. Es el `gap` de CSS, uno a uno. */
+  /** Figma's `itemSpacing`. It is the CSS `gap`, one to one. */
   gap?: number
   align?: Align
   justify?: Justify
   wrap?: boolean
-  /** padding resuelto en el orden [top, right, bottom, left] */
+  /** Resolved padding in [top, right, bottom, left] order. */
   padding?: [number, number, number, number]
 }
 
 /**
- * Rol semántico del nodo. No es el `type` de Figma (FRAME, TEXT, RECTANGLE):
- * es para qué sirve, que es lo que el generador necesita saber para elegir
- * el elemento HTML correcto.
+ * Semantic role of the node. Not Figma's `type` (FRAME, TEXT, RECTANGLE): what
+ * it is *for*, which is what the generator needs in order to pick the right
+ * HTML element.
  */
 export type IRRole =
   | 'container'
@@ -51,21 +51,21 @@ export type IRRole =
 
 export interface IRNode {
   role: IRRole
-  /** Nombre del layer, sanitizado. Sirve para nombrar props y slots. */
+  /** Layer name, sanitized. Prop and slot names come from here. */
   name: string
   layout?: IRLayout
-  /** Tokens resueltos o valores crudos pendientes de resolver. */
+  /** Resolved tokens, or raw values still pending resolution. */
   tokens?: Record<string, string>
-  /** Nivel de heading (1-6). Sólo para role: 'heading'. */
+  /** Heading level (1-6). Only for role: 'heading'. */
   level?: number
-  /** Nombre del slot/prop por el que entra el contenido. */
+  /** Name of the slot/prop the content comes in through. */
   slot?: string
-  /** El copy real del diseño. Va como valor por defecto del prop
-   *  (decisión de la spec, sección "Contenido"). */
+  /** The real copy from the design. Becomes the prop's default value rather
+   *  than being hardcoded in the markup (spec, "Content" section). */
   default?: string
-  /** Nombre de archivo del asset, relativo a la carpeta de la corrida. */
+  /** Asset filename, relative to the run folder. */
   asset?: string
-  /** Relación de aspecto como string CSS, ej "16/9". */
+  /** Aspect ratio as a CSS string, e.g. "16/9". */
   ratio?: string
   children?: IRNode[]
 }
@@ -73,15 +73,15 @@ export interface IRNode {
 export interface IRSource {
   file: string
   node: string
-  /** Nombre del frame en Figma, tal cual. */
+  /** The frame name in Figma, verbatim. */
   frameName: string
   fetchedAt: string
 }
 
 /**
- * Una advertencia no es un error: es algo que el pipeline detectó y no puede
- * resolver solo. `distill` frena si acumula demasiadas de severidad alta,
- * en vez de adivinar (Ley 2, "corolario incómodo").
+ * A warning is not an error: it is something the pipeline detected and cannot
+ * resolve on its own. `distill` halts if too many high-severity ones pile up,
+ * rather than guessing (Law 2, "the uncomfortable corollary").
  */
 export interface IRWarning {
   code:
@@ -93,7 +93,7 @@ export interface IRWarning {
     | 'deep-nesting'
   message: string
   severity: 'info' | 'warn' | 'error'
-  /** Ruta del layer en Figma, ej "Hero / Content / Title". */
+  /** Layer path in Figma, e.g. "Hero / Content / Title". */
   path?: string
 }
 
@@ -103,21 +103,21 @@ export interface IR {
   layout: IRLayout
   tokens: Record<string, string>
   children: IRNode[]
-  /** Variants de Figma → props del componente. Es un mapeo directo. */
+  /** Figma variants become component props. It is a direct mapping. */
   variants?: Record<string, string[]>
   warnings: IRWarning[]
-  /** Hash del contenido semántico, sin metadata. Da idempotencia:
-   *  el mismo nodo dos veces se reconoce y se ofrece actualizar. */
+  /** Hash of the semantic content, metadata excluded. This is what gives
+   *  idempotency: the same node twice is recognized and offered as an update. */
   hash: string
 }
 
 /**
- * Valor crudo extraído del diseño, antes de resolverse contra el sistema de
- * tokens del proyecto. La etapa `resolve` los clasifica en exact/near/new.
+ * A raw value pulled from the design, before it is resolved against the
+ * project's token system. The `resolve` stage sorts these into exact/near/new.
  */
 export interface RawToken {
   kind: 'color' | 'spacing' | 'typography' | 'radius' | 'shadow'
   value: string
-  /** Dónde apareció, para poder reportarlo. */
+  /** Where it showed up, so it can be reported. */
   usedIn: string[]
 }

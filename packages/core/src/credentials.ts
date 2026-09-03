@@ -1,18 +1,17 @@
 /**
- * Ley 10 — El secreto no pasa por el modelo.
+ * Law 10 — The secret does not pass through the model.
  *
- * El pipeline corre dentro de una sesión de Claude Code. Si el token de Figma
- * aparece en un mensaje, queda en el transcript, en el contexto, en los logs y
- * eventualmente en la memoria persistente. Un secreto que atravesó el LLM hay
- * que considerarlo comprometido.
+ * The pipeline runs inside a Claude Code session. If the Figma token shows up
+ * in a message it ends up in the transcript, in the context, in the logs and
+ * eventually in persistent memory. A secret that went through the LLM has to be
+ * treated as compromised.
  *
- * De ahí sale todo lo de este módulo:
- *  - se lee de stdin oculto, nunca de un argumento (queda en el historial del
- *    shell y en la lista de procesos)
- *  - vive una vez en la máquina, no una vez por proyecto, porque `gw` es un
- *    binario global y pegarlo N veces multiplica por N las chances de
- *    commitearlo
- *  - se enmascara en cualquier salida
+ * Everything in this module follows from that:
+ *  - it is read from hidden stdin, never from an argument (arguments land in
+ *    the shell history and in the process list)
+ *  - it lives once per machine, not once per project, because `gw` is a global
+ *    binary and pasting it N times multiplies the odds of committing it by N
+ *  - it is masked in any output
  */
 
 import { homedir } from 'node:os'
@@ -21,13 +20,13 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, rmSync }
 
 export interface Credentials {
   figmaToken: string
-  /** De dónde salió. Se reporta para que no haya sorpresas sobre qué token se
-   *  está usando cuando hay varios orígenes posibles. */
+  /** Where it came from. Reported so there are no surprises about which token
+   *  is in use when several sources are possible. */
   origin: 'env' | 'project-dotenv' | 'user-config'
 }
 
 export function configDir(): string {
-  // XDG si está definido; si no, el default de la plataforma.
+  // XDG when defined; otherwise the platform default.
   const xdg = process.env.XDG_CONFIG_HOME
   return xdg ? join(xdg, 'gridwright') : join(homedir(), '.config', 'gridwright')
 }
@@ -36,14 +35,15 @@ export function credentialsPath(): string {
   return join(configDir(), 'credentials.json')
 }
 
-/** Enmascara para logs y mensajes de error. Nunca imprimir un token entero. */
+/** Masks for logs and error messages. Never print a whole token. */
 export function mask(token: string): string {
   if (token.length <= 10) return '****'
   return `${token.slice(0, 5)}…${token.slice(-4)}`
 }
 
-/** Lee FIGMA_TOKEN del .env del proyecto sin arrastrar dotenv como dependencia
- *  ni contaminar process.env (que es lo que después se filtra a los subprocesos). */
+/** Reads FIGMA_TOKEN from the project's .env without pulling in dotenv and
+ *  without polluting process.env — which is what would leak into every child
+ *  process we spawn. */
 function readProjectDotenv(cwd: string): string | null {
   const path = join(cwd, '.env')
   if (!existsSync(path)) return null
@@ -56,14 +56,14 @@ function readProjectDotenv(cwd: string): string | null {
       if (value) return value
     }
   } catch {
-    // un .env ilegible no es fatal: seguimos con el siguiente origen
+    // An unreadable .env is not fatal: fall through to the next source.
   }
   return null
 }
 
 /**
- * Orden de resolución, primero que gane. El caso normal es el último:
- * el token vive una vez en la máquina.
+ * Resolution order, first match wins. The normal case is the last one: the
+ * token lives once per machine.
  */
 export function resolveCredentials(cwd: string = process.cwd()): Credentials | null {
   const fromEnv = process.env.FIGMA_TOKEN?.trim()
@@ -78,8 +78,8 @@ export function resolveCredentials(cwd: string = process.cwd()): Credentials | n
       const parsed = JSON.parse(readFileSync(path, 'utf8')) as { figmaToken?: string }
       if (parsed.figmaToken) return { figmaToken: parsed.figmaToken, origin: 'user-config' }
     } catch {
-      // credenciales corruptas se tratan como ausentes: mejor pedirlas de nuevo
-      // que fallar con un JSON.parse críptico tres etapas más adelante
+      // Corrupt credentials are treated as absent: better to ask again than to
+      // die with a cryptic JSON.parse three stages down the line.
     }
   }
   return null
@@ -90,8 +90,8 @@ export function saveCredentials(token: string): string {
   mkdirSync(dir, { recursive: true, mode: 0o700 })
   const path = credentialsPath()
   writeFileSync(path, JSON.stringify({ figmaToken: token }, null, 2) + '\n', { mode: 0o600 })
-  // writeFileSync sólo aplica el modo si crea el archivo; si ya existía con
-  // permisos laxos hay que forzarlo.
+  // writeFileSync only applies the mode when it creates the file; if it already
+  // existed with loose permissions we have to force it.
   chmodSync(path, 0o600)
   chmodSync(dirname(path), 0o700)
   return path
@@ -104,6 +104,6 @@ export function clearCredentials(): boolean {
   return true
 }
 
-/** Scopes mínimos. Gridwright sólo lee: si el token trae permisos de escritura,
- *  sobran y conviene avisarlo. */
+/** Minimum scopes. Gridwright only reads: if the token carries write
+ *  permissions they are unnecessary and worth flagging. */
 export const REQUIRED_SCOPES = ['file_content:read', 'file_dev_resources:read'] as const

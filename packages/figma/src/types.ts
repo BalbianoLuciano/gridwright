@@ -1,6 +1,6 @@
-/** Subconjunto de la API de Figma que gridwright realmente usa.
- *  No es el tipo completo a propósito: lo que no está acá es lo que la Ley 2
- *  dice que hay que descartar antes de llegar al modelo. */
+/** The subset of the Figma API that gridwright actually uses.
+ *  Deliberately not the full type: what is missing here is what Law 2 says to
+ *  discard before anything reaches the model. */
 
 export interface FigmaColor { r: number; g: number; b: number; a?: number }
 

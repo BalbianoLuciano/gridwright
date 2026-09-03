@@ -1,15 +1,15 @@
 /**
- * Extracción de assets. Es el puerto de
- * `prolicht/tools/figma/figma-image-extractor.cjs`, con tres cambios.
+ * Asset extraction. This is a port of an earlier project's Figma image
+ * extractor, with three changes.
  *
- * 1. Encuentra el frame MÁS CHICO que contiene una imagen, no la imagen suelta.
- *    Ese detalle venía del original y es el que hace que el asset salga con el
- *    tamaño del diseño y no con el tamaño de origen del bitmap.
- * 2. `sharp.trim()` para sacar las transparencias que Figma agrega alrededor
- *    del contenido: sin esto aparecen los cuadraditos de checkerboard sobre
- *    fondos claros y las dimensiones no coinciden con el diseño.
- * 3. Las URLs firmadas de Figma NO se guardan en el manifest (Ley 10.c). El
- *    original las tenía a mano; son credenciales temporales con patas.
+ * 1. It finds the SMALLEST frame containing an image, not the loose image
+ *    itself. That detail came from the original and is what makes the asset
+ *    come out at the design's size rather than at the bitmap's source size.
+ * 2. `sharp.trim()` to strip the transparent padding Figma adds around
+ *    content: without it you get checkerboard squares over light backgrounds
+ *    and dimensions that do not match the design.
+ * 3. Figma's signed URLs are NOT stored in the manifest (Law 10.c). The
+ *    original kept them around; they are temporary credentials with legs.
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -26,7 +26,8 @@ export interface AssetRecord {
   width: number
   height: number
   bytes: number
-  /** Cuánto achicó el trim, si achicó. Es la señal de que había transparencias. */
+  /** How much the trim shrank it, if at all. It is the signal that there was
+   *  transparent padding. */
   trimmed?: { from: string; to: string }
 }
 
@@ -35,7 +36,8 @@ export interface AssetManifest {
   sourceFile: string
   sourceNode: string
   assets: AssetRecord[]
-  /** Si sharp no estaba disponible se guardan igual, sin optimizar, y se avisa. */
+  /** If sharp was unavailable the assets are still saved, unoptimized, and we
+   *  say so. */
   optimized: boolean
 }
 
@@ -47,9 +49,9 @@ interface ImageTarget {
   height: number
 }
 
-/** Frames con imagen, no imágenes sueltas. Cuando un nodo tiene image fill
- *  directo se exporta ESE nodo y se corta la recursión: capturar además a sus
- *  hijos duplicaría el mismo bitmap. */
+/** Frames with images, not loose images. When a node has a direct image fill we
+ *  export THAT node and stop recursing: also capturing its children would
+ *  duplicate the same bitmap. */
 export function findImageTargets(node: FigmaNode, parentPath = '', out: ImageTarget[] = []): ImageTarget[] {
   const path = parentPath ? `${parentPath} / ${node.name}` : node.name
   if (node.visible === false) return out
@@ -93,7 +95,7 @@ export async function extractAssets(
     return manifest
   }
 
-  // Las URLs viven sólo dentro de esta función: se consumen y se descartan.
+  // The URLs live only inside this function: consumed and dropped.
   const urls = await client.imageUrls(source.fileKey, targets.map((t) => t.id), { scale: opts.scale ?? 2 })
 
   const used = new Set<string>()
@@ -138,14 +140,14 @@ function writeManifest(dir: string, m: AssetManifest): void {
 
 function nameFor(layerName: string, prefix?: string): string {
   const slug = slugify(layerName)
-  // El original trataba hero/banner distinto porque es el asset que casi
-  // siempre se usa como fondo y conviene poder encontrarlo por nombre.
+  // The original treated hero/banner separately because it is almost always the
+  // background asset, and being able to find it by name matters.
   if (/hero|banner/.test(slug)) return prefix ? `hero-${prefix}.png` : 'hero.png'
   return prefix ? `${prefix}-${slug}.png` : `${slug}.png`
 }
 
-/** Dos layers pueden llamarse igual. El original resolvía con índice global,
- *  lo que hacía que agregar una imagen renombrara todas las demás. */
+/** Two layers can share a name. The original resolved this with a global index,
+ *  which meant adding one image renamed every other one. */
 function uniqueName(name: string, used: Set<string>): string {
   if (!used.has(name)) { used.add(name); return name }
   const base = name.replace(/\.png$/, '')
@@ -156,8 +158,8 @@ function uniqueName(name: string, used: Set<string>): string {
   return final
 }
 
-/** sharp es un módulo nativo: si no está, se guardan los assets sin optimizar
- *  en vez de romper toda la corrida. */
+/** sharp is a native module: when it is missing we save the assets unoptimized
+ *  instead of breaking the whole run. */
 async function loadSharp(): Promise<((input?: Buffer) => any) | null> {
   try {
     const mod = await import('sharp')

@@ -1,17 +1,19 @@
 /**
- * Ley 2 — El árbol crudo de Figma nunca toca el LLM.
+ * Law 2 — The raw Figma tree never reaches the LLM.
  *
- * Acá vive la destilación. Dos de las traducciones son isomorfismos, no
- * heurísticas, y por eso el resultado es confiable:
+ * This is where the distillation lives. Two of the translations are
+ * isomorphisms rather than heuristics, which is why the result is trustworthy:
  *
- *   auto-layout  →  flex con gap   (layoutMode + itemSpacing + *AxisAlignItems)
- *   variants     →  props          (componentPropertyDefinitions)
+ *   auto-layout  →  flex with gap   (layoutMode + itemSpacing + *AxisAlignItems)
+ *   variants     →  props           (componentPropertyDefinitions)
  *
- * Efecto lateral valioso del primero: gridwright NO PUEDE generar margins entre
- * hermanos, porque Figma no le da esa información. La regla se cumple sola.
+ * A valuable side effect of the first: gridwright CANNOT generate margins
+ * between siblings, because Figma never gives it that information. The rule
+ * enforces itself.
  *
- * Lo que no es isomorfismo —el rol semántico de cada nodo— es heurística
- * declarada, y cuando falla lo dice en `warnings` en vez de adivinar callado.
+ * What is not an isomorphism — the semantic role of each node — is a declared
+ * heuristic, and when it fails it says so in `warnings` instead of guessing
+ * quietly.
  */
 
 import { createHash } from 'node:crypto'
@@ -27,9 +29,9 @@ export interface DistillOptions {
 
 export interface DistillResult {
   ir: IR
-  /** Valores crudos del diseño, sin resolver contra el sistema de tokens.
-   *  Es lo que consume la etapa `resolve` (fase 4). Hasta entonces `ir.tokens`
-   *  también contiene valores crudos, no nombres de tokens. */
+  /** Raw design values, not yet resolved against the token system. This is what
+   *  the `resolve` stage (phase 4) consumes. Until then `ir.tokens` also holds
+   *  raw values, not token names. */
   rawTokens: RawToken[]
 }
 
@@ -68,17 +70,17 @@ export function distill(
   return { ir, rawTokens: [...ctx.raw.values()] }
 }
 
-/** Si el diseño no usó auto-layout no hay layout que extraer. Es preferible
- *  frenar que generar doscientas líneas que parecen bien. */
+/** If the design did not use auto-layout there is no layout to extract.
+ *  Halting beats emitting two hundred lines that merely look right. */
 export function shouldHalt(ir: IR, opts: DistillOptions): { halt: boolean; reason?: string } {
   const absolute = ir.warnings.filter((w) => w.code === 'absolute-positioning').length
   if (absolute > opts.maxAbsoluteNodes) {
     return {
       halt: true,
       reason:
-        `${absolute} nodos están posicionados de forma absoluta (el máximo tolerado es ${opts.maxAbsoluteNodes}). ` +
-        `Este frame no usa auto-layout, así que no hay layout que inferir. ` +
-        `Esto no se arregla con mejor prompt: se arregla en Figma.`,
+        `${absolute} nodes are absolutely positioned (the tolerated maximum is ${opts.maxAbsoluteNodes}). ` +
+        `This frame does not use auto-layout, so there is no layout to infer. ` +
+        `A better prompt will not fix this: it gets fixed in Figma.`,
     }
   }
   return { halt: false }
@@ -100,7 +102,7 @@ function walk(node: FigmaNode, ctx: Ctx, parentPath: string, depth: number): IRN
     ctx.warnings.push({
       code: 'deep-nesting',
       severity: 'warn',
-      message: `Anidamiento de ${depth} niveles; se cortó acá. Suele ser envoltorios de Figma sin sentido semántico.`,
+      message: `${depth} levels of nesting; cut off here. Usually Figma wrappers with no semantic meaning.`,
       path,
     })
     return null
@@ -110,7 +112,7 @@ function walk(node: FigmaNode, ctx: Ctx, parentPath: string, depth: number): IRN
     ctx.warnings.push({
       code: 'unnamed-layer',
       severity: 'info',
-      message: `Layer sin nombrar ("${node.name}"). El nombre del componente y de los props sale de acá.`,
+      message: `Unnamed layer ("${node.name}"). Component and prop names come from these.`,
       path,
     })
   }
@@ -127,8 +129,8 @@ function walk(node: FigmaNode, ctx: Ctx, parentPath: string, depth: number): IRN
   if (role === 'heading' || role === 'text') {
     const text = node.characters?.trim()
     if (text) {
-      // El copy del diseño va como valor por defecto del prop, no hardcodeado
-      // en el markup (spec, sección "Contenido").
+      // The design copy becomes the prop's default value, not hardcoded markup
+      // (spec, "Content" section).
       out.default = text
       out.slot = slotName(node.name, text)
     }
@@ -152,9 +154,9 @@ function walk(node: FigmaNode, ctx: Ctx, parentPath: string, depth: number): IRN
 }
 
 /**
- * auto-layout → flex. Uno a uno, sin inferencia.
- * Si el nodo tiene hijos y NO tiene auto-layout, eso es una advertencia: sus
- * hijos están posicionados en absoluto y el layout no es recuperable.
+ * auto-layout → flex. One to one, no inference.
+ * If the node has children and NO auto-layout, that is a warning: its children
+ * are absolutely positioned and the layout is not recoverable.
  */
 function readLayout(node: FigmaNode, ctx: Ctx, path: string): IRLayout {
   const mode = node.layoutMode
@@ -165,7 +167,7 @@ function readLayout(node: FigmaNode, ctx: Ctx, path: string): IRLayout {
       ctx.warnings.push({
         code: 'absolute-positioning',
         severity: 'error',
-        message: `"${node.name}" tiene ${childCount} hijos sin auto-layout. El layout no es inferible.`,
+        message: `"${node.name}" has ${childCount} children with no auto-layout. The layout is not inferable.`,
         path,
       })
       return { kind: 'absolute' }
@@ -213,8 +215,8 @@ function mapAlign(a: FigmaAxisAlign | undefined): Align | undefined {
   }
 }
 
-/** Valores crudos: color de fondo, radio, tipografía. `resolve` los cambia por
- *  nombres de tokens del proyecto en la fase 4. */
+/** Raw values: background color, radius, typography. `resolve` swaps them for
+ *  project token names in phase 4. */
 function readTokens(node: FigmaNode, ctx: Ctx, path: string): Record<string, string> {
   const out: Record<string, string> = {}
 
@@ -256,7 +258,7 @@ function record(ctx: Ctx, token: RawToken): void {
   else ctx.raw.set(key, { ...token })
 }
 
-/** Variants de Figma → matriz de props. Mapeo directo, sin inventar nada. */
+/** Figma variants → the prop matrix. Direct mapping, nothing invented. */
 function readVariants(node: FigmaNode): Record<string, string[]> | undefined {
   const defs = node.componentPropertyDefinitions
   if (!defs) return undefined
@@ -270,10 +272,11 @@ function readVariants(node: FigmaNode): Record<string, string[]> | undefined {
 }
 
 /**
- * Colapsa envoltorios inútiles: un container con un solo hijo, sin layout
- * propio, sin padding y sin fondo, no aporta nada y sólo agrega un div.
+ * Collapses useless wrappers: a container with a single child, no layout of its
+ * own, no padding and no background, contributes nothing and would only add a
+ * div.
  *
- * Es la diferencia entre un IR de 120 líneas y uno de 400.
+ * This is the difference between a 120-line IR and a 400-line one.
  */
 function collapse(nodes: IRNode[]): IRNode[] {
   return nodes.map((n) => {
@@ -292,7 +295,7 @@ function collapse(nodes: IRNode[]): IRNode[] {
   })
 }
 
-// --- heurísticas declaradas ------------------------------------------------
+// --- declared heuristics ---------------------------------------------------
 
 function detectRole(node: FigmaNode): IRRole {
   const n = node.name.toLowerCase()
@@ -316,8 +319,8 @@ function isHeadingish(node: FigmaNode): boolean {
   return (node.style?.fontSize ?? 0) >= 24
 }
 
-/** El nivel sale del tamaño, salvo que el nombre del layer lo diga explícito.
- *  Es heurística: `plan` la puede corregir con criterio humano. */
+/** The level comes from the size, unless the layer name states it explicitly.
+ *  It is a heuristic: `plan` can override it with human judgment. */
 function headingLevel(node: FigmaNode): number {
   const explicit = node.name.toLowerCase().match(/\bh([1-6])\b/)
   if (explicit) return Number(explicit[1])
@@ -341,7 +344,7 @@ function isUnnamed(name: string): boolean {
   return /^(Frame|Group|Rectangle|Vector|Ellipse|Line|Component)\s+\d+$/i.test(name.trim())
 }
 
-// --- utilidades ------------------------------------------------------------
+// --- utilities -------------------------------------------------------------
 
 function toHex(paint: FigmaPaint): string {
   const c = paint.color!
@@ -379,7 +382,7 @@ export function slugify(name: string): string {
 export function toPascalCase(name: string): string {
   const parts = sanitize(name).replace(/[^A-Za-z0-9\s-]/g, '').split(/[\s-]+/).filter(Boolean)
   const pascal = parts.map((p) => p[0]!.toUpperCase() + p.slice(1)).join('')
-  // Un identificador no puede empezar con dígito.
+  // An identifier cannot start with a digit.
   return /^[0-9]/.test(pascal) ? `C${pascal}` : pascal || 'Component'
 }
 
@@ -388,8 +391,8 @@ export function camelCase(name: string): string {
   return p[0]!.toLowerCase() + p.slice(1)
 }
 
-/** Nombre del prop por el que entra el contenido. Prefiere el nombre del layer;
- *  si es genérico, cae al contenido. */
+/** Name of the prop the content comes in through. Prefers the layer name; when
+ *  that is generic, falls back to the content. */
 function slotName(layerName: string, text: string): string {
   const clean = camelCase(layerName)
   if (clean && !/^(text|label|content|frame|group)\d*$/i.test(clean)) return clean
@@ -397,12 +400,12 @@ function slotName(layerName: string, text: string): string {
 }
 
 /**
- * Hash del contenido semántico: estructura, roles y layout. Sin nombres de
- * archivo, sin timestamps, sin warnings.
+ * Hash of the semantic content: structure, roles and layout. No filenames, no
+ * timestamps, no warnings.
  *
- * Es lo que da idempotencia: el mismo nodo de Figma dos veces se reconoce y se
- * ofrece actualizar en vez de duplicar. Sin esto, a los dos meses hay
- * HeroAboutUs, HeroAboutUs2 y HeroAboutUsNew.
+ * This is what gives idempotency: the same Figma node twice is recognized and
+ * offered as an update rather than a duplicate. Without it, two months later
+ * you have HeroAboutUs, HeroAboutUs2 and HeroAboutUsNew.
  */
 export function semanticHash(ir: IR): string {
   const skeleton = (n: IRNode): unknown => ({

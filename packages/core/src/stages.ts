@@ -1,9 +1,9 @@
 /**
- * Las etapas del pipeline, en orden. Es la tabla de la spec, en código.
+ * The pipeline stages, in order. It is the spec's table, in code.
  *
- * `auth` no está acá a propósito: es una precondición, no una etapa. `gw next`
- * la chequea antes de abrir el run, porque no tiene sentido dejar una corrida a
- * medio crear para que muera en `fetch`.
+ * `auth` is deliberately absent: it is a precondition, not a stage. `gw next`
+ * checks it before opening the run, because there is no point leaving a
+ * half-created run behind only for it to die in `fetch`.
  */
 
 export const STAGES = [
@@ -26,20 +26,20 @@ export const STAGES = [
 
 export type Stage = (typeof STAGES)[number]
 
-/** Quién ejecuta la etapa. Ley 3: si se puede verificar con un assert, no la
- *  hace el modelo; si necesita criterio sobre el código existente, no la hace
- *  el programa. */
+/** Who runs the stage. Law 3: if it can be checked with an assert, the model
+ *  does not do it; if it needs judgment about existing code, the program does
+ *  not do it. */
 export type Actor = 'code' | 'agent' | 'human'
 
 export interface StageSpec {
   id: Stage
   actor: Actor
-  /** Requiere aprobación humana antes de avanzar (Ley 5). */
+  /** Needs human approval before advancing (Law 5). */
   gate: boolean
-  /** No se puede marcar `skipped`. Son las tres que construyen el sistema. */
+  /** Cannot be marked `skipped`. These are the three that build the system. */
   mandatory: boolean
-  /** Si todavía no se implementó, en qué fase de la spec entra. Se reporta
-   *  explícitamente en vez de fingir que se ejecutó. */
+  /** If not built yet, which spec phase it belongs to. Reported explicitly
+   *  rather than pretending the stage ran. */
   phase: 1 | 2 | 3 | 4 | 5
   summary: string
 }
@@ -47,68 +47,68 @@ export interface StageSpec {
 export const STAGE_SPECS: Record<Stage, StageSpec> = {
   'init': {
     id: 'init', actor: 'human', gate: true, mandatory: false, phase: 1,
-    summary: 'Configurar el proyecto: framework, rutas, tokens, viewports',
+    summary: 'Configure the project: framework, paths, tokens, viewports',
   },
   'fetch': {
     id: 'fetch', actor: 'code', gate: false, mandatory: false, phase: 1,
-    summary: 'Traer de Figma el árbol, la imagen de referencia y los assets',
+    summary: 'Pull the tree, the reference image and the assets from Figma',
   },
   'distill': {
     id: 'distill', actor: 'code', gate: false, mandatory: false, phase: 1,
-    summary: 'Destilar el árbol crudo al IR',
+    summary: 'Distill the raw tree into the IR',
   },
   'resolve': {
     id: 'resolve', actor: 'code', gate: false, mandatory: false, phase: 4,
-    summary: 'Clasificar los valores del diseño en exact / near / new',
+    summary: 'Sort the design values into exact / near / new',
   },
   'tokens': {
     id: 'tokens', actor: 'agent', gate: true, mandatory: true, phase: 4,
-    summary: 'Nombrar y escribir los tokens nuevos al sistema del proyecto',
+    summary: "Name and write the new tokens into the project's system",
   },
   'library:ensure': {
     id: 'library:ensure', actor: 'code', gate: true, mandatory: true, phase: 4,
-    summary: 'Garantizar que exista la component library',
+    summary: 'Make sure the component library exists',
   },
   'survey': {
     id: 'survey', actor: 'code', gate: false, mandatory: false, phase: 5,
-    summary: 'Indexar el repo y buscar componentes reutilizables',
+    summary: 'Index the repo and look for reusable components',
   },
   'plan': {
     id: 'plan', actor: 'agent', gate: true, mandatory: false, phase: 3,
-    summary: 'Proponer archivos, props y qué se reutiliza',
+    summary: 'Propose files, props and what gets reused',
   },
   'author': {
     id: 'author', actor: 'agent', gate: false, mandatory: false, phase: 3,
-    summary: 'Escribir el componente',
+    summary: 'Write the component',
   },
   'harness': {
     id: 'harness', actor: 'code', gate: false, mandatory: false, phase: 2,
-    summary: 'Montar el componente en un Vite efímero aislado',
+    summary: 'Mount the component in an isolated ephemeral Vite',
   },
   'verify': {
     id: 'verify', actor: 'code', gate: false, mandatory: false, phase: 2,
-    summary: 'Renderizar, medir las tres dimensiones y calcular el score',
+    summary: 'Render, measure the three dimensions and compute the score',
   },
   'refine': {
     id: 'refine', actor: 'agent', gate: false, mandatory: false, phase: 3,
-    summary: 'Corregir con el diff enfocado por dimensión',
+    summary: 'Fix using the diff focused by dimension',
   },
   'golden': {
     id: 'golden', actor: 'human', gate: true, mandatory: false, phase: 4,
-    summary: 'Congelar el baseline y escribir el test de regresión',
+    summary: 'Freeze the baseline and write the regression test',
   },
   'library:register': {
     id: 'library:register', actor: 'code', gate: false, mandatory: true, phase: 4,
-    summary: 'Agregar el componente al barrel y al registry',
+    summary: 'Add the component to the barrel and the registry',
   },
   'report': {
     id: 'report', actor: 'code', gate: false, mandatory: false, phase: 4,
-    summary: 'Generar el dashboard de la corrida',
+    summary: 'Generate the run dashboard',
   },
 }
 
-/** Fase de desarrollo que está construida hoy. Todo lo de fases superiores
- *  reporta "no implementado" en vez de fingir. */
+/** Development phase that is built today. Anything in a higher phase reports
+ *  "not implemented" instead of pretending. */
 export const IMPLEMENTED_THROUGH_PHASE = 1
 
 export function isImplemented(stage: Stage): boolean {
