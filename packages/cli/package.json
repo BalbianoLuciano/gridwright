@@ -1,0 +1,21 @@
+{
+  "name": "@gridwright/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "gw": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@gridwright/core": "workspace:*",
+    "@gridwright/figma": "workspace:*"
+  },
+  "license": "MIT"
+}
