@@ -1,0 +1,65 @@
+/** Subconjunto de la API de Figma que gridwright realmente usa.
+ *  No es el tipo completo a propósito: lo que no está acá es lo que la Ley 2
+ *  dice que hay que descartar antes de llegar al modelo. */
+
+export interface FigmaColor { r: number; g: number; b: number; a?: number }
+
+export interface FigmaPaint {
+  type: 'SOLID' | 'IMAGE' | 'GRADIENT_LINEAR' | 'GRADIENT_RADIAL' | string
+  visible?: boolean
+  opacity?: number
+  color?: FigmaColor
+  imageRef?: string
+}
+
+export interface FigmaTypeStyle {
+  fontFamily?: string
+  fontWeight?: number
+  fontSize?: number
+  lineHeightPx?: number
+  letterSpacing?: number
+  textCase?: string
+}
+
+export interface FigmaBox { x: number; y: number; width: number; height: number }
+
+export type FigmaLayoutMode = 'NONE' | 'HORIZONTAL' | 'VERTICAL'
+export type FigmaAxisAlign = 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN' | 'BASELINE'
+
+export interface FigmaNode {
+  id: string
+  name: string
+  type: string
+  visible?: boolean
+  children?: FigmaNode[]
+  fills?: FigmaPaint[]
+  strokes?: FigmaPaint[]
+  absoluteBoundingBox?: FigmaBox | null
+  layoutMode?: FigmaLayoutMode
+  itemSpacing?: number
+  layoutWrap?: 'NO_WRAP' | 'WRAP'
+  primaryAxisAlignItems?: FigmaAxisAlign
+  counterAxisAlignItems?: FigmaAxisAlign
+  paddingTop?: number
+  paddingRight?: number
+  paddingBottom?: number
+  paddingLeft?: number
+  cornerRadius?: number
+  characters?: string
+  style?: FigmaTypeStyle
+  exportSettings?: unknown[]
+  componentPropertyDefinitions?: Record<string, { type: string; variantOptions?: string[] }>
+  componentProperties?: Record<string, { type: string; value: string }>
+}
+
+export interface FigmaNodesResponse {
+  name?: string
+  nodes: Record<string, { document: FigmaNode } | undefined>
+}
+
+export interface FigmaImagesResponse {
+  err?: string | null
+  images: Record<string, string | null>
+}
+
+export interface FigmaMe { id: string; email?: string; handle?: string }

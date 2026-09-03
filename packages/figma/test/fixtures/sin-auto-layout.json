@@ -1,0 +1,50 @@
+{
+  "id": "1:100",
+  "name": "Vista Legacy",
+  "type": "FRAME",
+  "absoluteBoundingBox": { "x": 0, "y": 0, "width": 1440, "height": 900 },
+  "children": [
+    { "id": "1:101", "name": "Group 12", "type": "GROUP",
+      "absoluteBoundingBox": { "x": 10, "y": 10, "width": 100, "height": 100 },
+      "children": [
+        { "id": "1:102", "name": "Rectangle 4", "type": "RECTANGLE", "absoluteBoundingBox": { "x": 10, "y": 10, "width": 50, "height": 50 } },
+        { "id": "1:103", "name": "Rectangle 5", "type": "RECTANGLE", "absoluteBoundingBox": { "x": 70, "y": 10, "width": 50, "height": 50 } }
+      ] },
+    { "id": "1:104", "name": "Group 13", "type": "GROUP",
+      "absoluteBoundingBox": { "x": 10, "y": 120, "width": 100, "height": 100 },
+      "children": [
+        { "id": "1:105", "name": "Vector 1", "type": "VECTOR", "absoluteBoundingBox": { "x": 10, "y": 120, "width": 50, "height": 50 } },
+        { "id": "1:106", "name": "Vector 2", "type": "VECTOR", "absoluteBoundingBox": { "x": 70, "y": 120, "width": 50, "height": 50 } }
+      ] },
+    { "id": "1:107", "name": "Group 14", "type": "GROUP",
+      "absoluteBoundingBox": { "x": 10, "y": 240, "width": 100, "height": 100 },
+      "children": [
+        { "id": "1:108", "name": "Ellipse 1", "type": "ELLIPSE", "absoluteBoundingBox": { "x": 10, "y": 240, "width": 50, "height": 50 } },
+        { "id": "1:109", "name": "Ellipse 2", "type": "ELLIPSE", "absoluteBoundingBox": { "x": 70, "y": 240, "width": 50, "height": 50 } }
+      ] },
+    { "id": "1:110", "name": "Group 15", "type": "GROUP",
+      "absoluteBoundingBox": { "x": 10, "y": 360, "width": 100, "height": 100 },
+      "children": [
+        { "id": "1:111", "name": "Line 1", "type": "LINE", "absoluteBoundingBox": { "x": 10, "y": 360, "width": 50, "height": 1 } },
+        { "id": "1:112", "name": "Line 2", "type": "LINE", "absoluteBoundingBox": { "x": 70, "y": 360, "width": 50, "height": 1 } }
+      ] },
+    { "id": "1:113", "name": "Group 16", "type": "GROUP",
+      "absoluteBoundingBox": { "x": 10, "y": 480, "width": 100, "height": 100 },
+      "children": [
+        { "id": "1:114", "name": "Rectangle 6", "type": "RECTANGLE", "absoluteBoundingBox": { "x": 10, "y": 480, "width": 50, "height": 50 } },
+        { "id": "1:115", "name": "Rectangle 7", "type": "RECTANGLE", "absoluteBoundingBox": { "x": 70, "y": 480, "width": 50, "height": 50 } }
+      ] },
+    { "id": "1:116", "name": "Group 17", "type": "GROUP",
+      "absoluteBoundingBox": { "x": 10, "y": 600, "width": 100, "height": 100 },
+      "children": [
+        { "id": "1:117", "name": "Rectangle 8", "type": "RECTANGLE", "absoluteBoundingBox": { "x": 10, "y": 600, "width": 50, "height": 50 } },
+        { "id": "1:118", "name": "Rectangle 9", "type": "RECTANGLE", "absoluteBoundingBox": { "x": 70, "y": 600, "width": 50, "height": 50 } }
+      ] },
+    { "id": "1:119", "name": "Group 18", "type": "GROUP",
+      "absoluteBoundingBox": { "x": 10, "y": 720, "width": 100, "height": 100 },
+      "children": [
+        { "id": "1:120", "name": "Rectangle 10", "type": "RECTANGLE", "absoluteBoundingBox": { "x": 10, "y": 720, "width": 50, "height": 50 } },
+        { "id": "1:121", "name": "Rectangle 11", "type": "RECTANGLE", "absoluteBoundingBox": { "x": 70, "y": 720, "width": 50, "height": 50 } }
+      ] }
+  ]
+}

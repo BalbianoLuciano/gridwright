@@ -1,0 +1,53 @@
+{
+  "id": "3978:35299",
+  "name": "Hero About Us",
+  "type": "FRAME",
+  "layoutMode": "VERTICAL",
+  "itemSpacing": 24,
+  "primaryAxisAlignItems": "CENTER",
+  "counterAxisAlignItems": "CENTER",
+  "paddingTop": 48, "paddingRight": 32, "paddingBottom": 48, "paddingLeft": 32,
+  "absoluteBoundingBox": { "x": 0, "y": 0, "width": 1440, "height": 720 },
+  "fills": [{ "type": "SOLID", "visible": true, "color": { "r": 0.102, "g": 0.102, "b": 0.102, "a": 1 } }],
+  "children": [
+    {
+      "id": "3978:35300",
+      "name": "Hero Background",
+      "type": "RECTANGLE",
+      "absoluteBoundingBox": { "x": 0, "y": 0, "width": 1440, "height": 405 },
+      "fills": [{ "type": "IMAGE", "visible": true, "imageRef": "abc123" }]
+    },
+    {
+      "id": "3978:35301",
+      "name": "Wrapper",
+      "type": "FRAME",
+      "layoutMode": "VERTICAL",
+      "absoluteBoundingBox": { "x": 0, "y": 405, "width": 1440, "height": 200 },
+      "children": [
+        {
+          "id": "3978:35302",
+          "name": "Title",
+          "type": "TEXT",
+          "characters": "Sobre nosotros",
+          "style": { "fontFamily": "Inter", "fontWeight": 700, "fontSize": 48, "lineHeightPx": 56 },
+          "absoluteBoundingBox": { "x": 0, "y": 405, "width": 600, "height": 56 }
+        }
+      ]
+    },
+    {
+      "id": "3978:35303",
+      "name": "Description",
+      "type": "TEXT",
+      "characters": "Fabricamos luminarias desde 1994.",
+      "style": { "fontFamily": "Inter", "fontWeight": 400, "fontSize": 16, "lineHeightPx": 24 },
+      "absoluteBoundingBox": { "x": 0, "y": 480, "width": 600, "height": 24 }
+    },
+    {
+      "id": "3978:35304",
+      "name": "Frame 427",
+      "type": "FRAME",
+      "visible": false,
+      "children": []
+    }
+  ]
+}

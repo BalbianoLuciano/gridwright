@@ -1,0 +1,419 @@
+/**
+ * Ley 2 — El árbol crudo de Figma nunca toca el LLM.
+ *
+ * Acá vive la destilación. Dos de las traducciones son isomorfismos, no
+ * heurísticas, y por eso el resultado es confiable:
+ *
+ *   auto-layout  →  flex con gap   (layoutMode + itemSpacing + *AxisAlignItems)
+ *   variants     →  props          (componentPropertyDefinitions)
+ *
+ * Efecto lateral valioso del primero: gridwright NO PUEDE generar margins entre
+ * hermanos, porque Figma no le da esa información. La regla se cumple sola.
+ *
+ * Lo que no es isomorfismo —el rol semántico de cada nodo— es heurística
+ * declarada, y cuando falla lo dice en `warnings` en vez de adivinar callado.
+ */
+
+import { createHash } from 'node:crypto'
+import type {
+  IR, IRLayout, IRNode, IRRole, IRWarning, RawToken, Align, Justify, Axis,
+} from '@gridwright/core'
+import type { FigmaAxisAlign, FigmaNode, FigmaPaint } from './types.js'
+
+export interface DistillOptions {
+  maxAbsoluteNodes: number
+  maxDepth: number
+}
+
+export interface DistillResult {
+  ir: IR
+  /** Valores crudos del diseño, sin resolver contra el sistema de tokens.
+   *  Es lo que consume la etapa `resolve` (fase 4). Hasta entonces `ir.tokens`
+   *  también contiene valores crudos, no nombres de tokens. */
+  rawTokens: RawToken[]
+}
+
+export function distill(
+  root: FigmaNode,
+  source: { fileKey: string; nodeId: string },
+  opts: DistillOptions,
+): DistillResult {
+  const ctx: Ctx = { warnings: [], raw: new Map(), opts, absoluteCount: 0 }
+
+  const children = (root.children ?? [])
+    .filter(isVisible)
+    .map((c) => walk(c, ctx, root.name, 1))
+    .filter((n): n is IRNode => n !== null)
+
+  const ir: IR = {
+    name: toPascalCase(root.name),
+    source: {
+      file: source.fileKey,
+      node: source.nodeId,
+      frameName: root.name,
+      fetchedAt: new Date().toISOString(),
+    },
+    layout: readLayout(root, ctx, root.name),
+    tokens: readTokens(root, ctx, root.name),
+    children: collapse(children),
+    warnings: ctx.warnings,
+    hash: '',
+  }
+
+  const variants = readVariants(root)
+  if (variants) ir.variants = variants
+
+  ir.hash = semanticHash(ir)
+
+  return { ir, rawTokens: [...ctx.raw.values()] }
+}
+
+/** Si el diseño no usó auto-layout no hay layout que extraer. Es preferible
+ *  frenar que generar doscientas líneas que parecen bien. */
+export function shouldHalt(ir: IR, opts: DistillOptions): { halt: boolean; reason?: string } {
+  const absolute = ir.warnings.filter((w) => w.code === 'absolute-positioning').length
+  if (absolute > opts.maxAbsoluteNodes) {
+    return {
+      halt: true,
+      reason:
+        `${absolute} nodos están posicionados de forma absoluta (el máximo tolerado es ${opts.maxAbsoluteNodes}). ` +
+        `Este frame no usa auto-layout, así que no hay layout que inferir. ` +
+        `Esto no se arregla con mejor prompt: se arregla en Figma.`,
+    }
+  }
+  return { halt: false }
+}
+
+// ---------------------------------------------------------------------------
+
+interface Ctx {
+  warnings: IRWarning[]
+  raw: Map<string, RawToken>
+  opts: DistillOptions
+  absoluteCount: number
+}
+
+function walk(node: FigmaNode, ctx: Ctx, parentPath: string, depth: number): IRNode | null {
+  const path = `${parentPath} / ${node.name}`
+
+  if (depth > ctx.opts.maxDepth) {
+    ctx.warnings.push({
+      code: 'deep-nesting',
+      severity: 'warn',
+      message: `Anidamiento de ${depth} niveles; se cortó acá. Suele ser envoltorios de Figma sin sentido semántico.`,
+      path,
+    })
+    return null
+  }
+
+  if (isUnnamed(node.name)) {
+    ctx.warnings.push({
+      code: 'unnamed-layer',
+      severity: 'info',
+      message: `Layer sin nombrar ("${node.name}"). El nombre del componente y de los props sale de acá.`,
+      path,
+    })
+  }
+
+  const role = detectRole(node)
+  const out: IRNode = { role, name: sanitize(node.name) }
+
+  const layout = readLayout(node, ctx, path)
+  if (layout.kind !== 'none') out.layout = layout
+
+  const tokens = readTokens(node, ctx, path)
+  if (Object.keys(tokens).length > 0) out.tokens = tokens
+
+  if (role === 'heading' || role === 'text') {
+    const text = node.characters?.trim()
+    if (text) {
+      // El copy del diseño va como valor por defecto del prop, no hardcodeado
+      // en el markup (spec, sección "Contenido").
+      out.default = text
+      out.slot = slotName(node.name, text)
+    }
+    if (role === 'heading') out.level = headingLevel(node)
+  }
+
+  if (role === 'image') {
+    out.asset = `${slugify(node.name)}.png`
+    const box = node.absoluteBoundingBox
+    if (box && box.width > 0 && box.height > 0) out.ratio = aspectRatio(box.width, box.height)
+  }
+
+  const kids = (node.children ?? [])
+    .filter(isVisible)
+    .map((c) => walk(c, ctx, path, depth + 1))
+    .filter((n): n is IRNode => n !== null)
+
+  if (kids.length > 0) out.children = collapse(kids)
+
+  return out
+}
+
+/**
+ * auto-layout → flex. Uno a uno, sin inferencia.
+ * Si el nodo tiene hijos y NO tiene auto-layout, eso es una advertencia: sus
+ * hijos están posicionados en absoluto y el layout no es recuperable.
+ */
+function readLayout(node: FigmaNode, ctx: Ctx, path: string): IRLayout {
+  const mode = node.layoutMode
+  const childCount = (node.children ?? []).filter(isVisible).length
+
+  if (!mode || mode === 'NONE') {
+    if (childCount > 1) {
+      ctx.warnings.push({
+        code: 'absolute-positioning',
+        severity: 'error',
+        message: `"${node.name}" tiene ${childCount} hijos sin auto-layout. El layout no es inferible.`,
+        path,
+      })
+      return { kind: 'absolute' }
+    }
+    return { kind: 'none' }
+  }
+
+  const layout: IRLayout = {
+    kind: 'flex',
+    dir: mode === 'VERTICAL' ? 'col' : ('row' as Axis),
+  }
+  if (node.itemSpacing) layout.gap = node.itemSpacing
+  if (node.layoutWrap === 'WRAP') layout.wrap = true
+
+  const justify = mapJustify(node.primaryAxisAlignItems)
+  if (justify) layout.justify = justify
+  const align = mapAlign(node.counterAxisAlignItems)
+  if (align) layout.align = align
+
+  const p: [number, number, number, number] = [
+    node.paddingTop ?? 0, node.paddingRight ?? 0, node.paddingBottom ?? 0, node.paddingLeft ?? 0,
+  ]
+  if (p.some((v) => v !== 0)) layout.padding = p
+
+  return layout
+}
+
+function mapJustify(a: FigmaAxisAlign | undefined): Justify | undefined {
+  switch (a) {
+    case 'MIN': return 'start'
+    case 'CENTER': return 'center'
+    case 'MAX': return 'end'
+    case 'SPACE_BETWEEN': return 'between'
+    default: return undefined
+  }
+}
+
+function mapAlign(a: FigmaAxisAlign | undefined): Align | undefined {
+  switch (a) {
+    case 'MIN': return 'start'
+    case 'CENTER': return 'center'
+    case 'MAX': return 'end'
+    case 'BASELINE': return 'baseline'
+    default: return undefined
+  }
+}
+
+/** Valores crudos: color de fondo, radio, tipografía. `resolve` los cambia por
+ *  nombres de tokens del proyecto en la fase 4. */
+function readTokens(node: FigmaNode, ctx: Ctx, path: string): Record<string, string> {
+  const out: Record<string, string> = {}
+
+  const solid = (node.fills ?? []).find((f) => f.type === 'SOLID' && f.visible !== false)
+  if (solid?.color) {
+    const hex = toHex(solid)
+    out.bg = hex
+    record(ctx, { kind: 'color', value: hex, usedIn: [path] })
+  }
+
+  if (node.cornerRadius) {
+    const v = `${node.cornerRadius}px`
+    out.radius = v
+    record(ctx, { kind: 'radius', value: v, usedIn: [path] })
+  }
+
+  if (node.style?.fontSize) {
+    const s = node.style
+    const v = [
+      s.fontFamily ?? 'inherit',
+      s.fontWeight ?? 400,
+      `${s.fontSize}px`,
+      s.lineHeightPx ? `${Math.round(s.lineHeightPx)}px` : 'normal',
+    ].join('/')
+    out.type = v
+    record(ctx, { kind: 'typography', value: v, usedIn: [path] })
+  }
+
+  const gap = node.itemSpacing
+  if (gap) record(ctx, { kind: 'spacing', value: `${gap}px`, usedIn: [path] })
+
+  return out
+}
+
+function record(ctx: Ctx, token: RawToken): void {
+  const key = `${token.kind}:${token.value}`
+  const existing = ctx.raw.get(key)
+  if (existing) existing.usedIn.push(...token.usedIn)
+  else ctx.raw.set(key, { ...token })
+}
+
+/** Variants de Figma → matriz de props. Mapeo directo, sin inventar nada. */
+function readVariants(node: FigmaNode): Record<string, string[]> | undefined {
+  const defs = node.componentPropertyDefinitions
+  if (!defs) return undefined
+  const out: Record<string, string[]> = {}
+  for (const [name, def] of Object.entries(defs)) {
+    if (def.type === 'VARIANT' && def.variantOptions?.length) {
+      out[camelCase(name)] = def.variantOptions
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+/**
+ * Colapsa envoltorios inútiles: un container con un solo hijo, sin layout
+ * propio, sin padding y sin fondo, no aporta nada y sólo agrega un div.
+ *
+ * Es la diferencia entre un IR de 120 líneas y uno de 400.
+ */
+function collapse(nodes: IRNode[]): IRNode[] {
+  return nodes.map((n) => {
+    let cur = n
+    while (
+      cur.role === 'container' &&
+      cur.children?.length === 1 &&
+      !cur.tokens &&
+      !cur.layout?.padding &&
+      !cur.layout?.gap
+    ) {
+      cur = cur.children[0]!
+    }
+    if (cur.children) cur = { ...cur, children: collapse(cur.children) }
+    return cur
+  })
+}
+
+// --- heurísticas declaradas ------------------------------------------------
+
+function detectRole(node: FigmaNode): IRRole {
+  const n = node.name.toLowerCase()
+
+  if (node.type === 'TEXT') {
+    return isHeadingish(node) ? 'heading' : 'text'
+  }
+  if (hasImageFill(node)) return 'image'
+  if (/\bicon\b|^ic[-_]/.test(n)) return 'icon'
+  if (/\bbutton\b|\bbtn\b|\bcta\b/.test(n)) return 'button'
+  if (/\binput\b|\bfield\b|\btextarea\b/.test(n)) return 'input'
+  if (node.type === 'LINE' || /\bdivider\b|\bseparator\b/.test(n)) return 'divider'
+  if (node.children?.length) return 'container'
+  if (['FRAME', 'GROUP', 'COMPONENT', 'INSTANCE', 'RECTANGLE'].includes(node.type)) return 'container'
+  return 'unknown'
+}
+
+function isHeadingish(node: FigmaNode): boolean {
+  const n = node.name.toLowerCase()
+  if (/\b(h[1-6]|title|heading|headline)\b/.test(n)) return true
+  return (node.style?.fontSize ?? 0) >= 24
+}
+
+/** El nivel sale del tamaño, salvo que el nombre del layer lo diga explícito.
+ *  Es heurística: `plan` la puede corregir con criterio humano. */
+function headingLevel(node: FigmaNode): number {
+  const explicit = node.name.toLowerCase().match(/\bh([1-6])\b/)
+  if (explicit) return Number(explicit[1])
+  const size = node.style?.fontSize ?? 16
+  if (size >= 48) return 1
+  if (size >= 36) return 2
+  if (size >= 28) return 3
+  if (size >= 22) return 4
+  return 5
+}
+
+export function hasImageFill(node: FigmaNode): boolean {
+  return (node.fills ?? []).some((f: FigmaPaint) => f.type === 'IMAGE' && f.visible !== false)
+}
+
+function isVisible(node: FigmaNode): boolean {
+  return node.visible !== false
+}
+
+function isUnnamed(name: string): boolean {
+  return /^(Frame|Group|Rectangle|Vector|Ellipse|Line|Component)\s+\d+$/i.test(name.trim())
+}
+
+// --- utilidades ------------------------------------------------------------
+
+function toHex(paint: FigmaPaint): string {
+  const c = paint.color!
+  const to255 = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255)
+  const hex = [to255(c.r), to255(c.g), to255(c.b)]
+    .map((v) => v.toString(16).padStart(2, '0'))
+    .join('')
+  const alpha = (paint.opacity ?? 1) * (c.a ?? 1)
+  if (alpha >= 0.999) return `#${hex}`
+  return `#${hex}${to255(alpha).toString(16).padStart(2, '0')}`
+}
+
+export function aspectRatio(w: number, h: number): string {
+  const g = gcd(Math.round(w), Math.round(h))
+  return `${Math.round(w) / g}/${Math.round(h) / g}`
+}
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b)
+}
+
+export function sanitize(name: string): string {
+  return name.replace(/\s+/g, ' ').trim()
+}
+
+export function slugify(name: string): string {
+  return sanitize(name)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '') || 'layer'
+}
+
+export function toPascalCase(name: string): string {
+  const parts = sanitize(name).replace(/[^A-Za-z0-9\s-]/g, '').split(/[\s-]+/).filter(Boolean)
+  const pascal = parts.map((p) => p[0]!.toUpperCase() + p.slice(1)).join('')
+  // Un identificador no puede empezar con dígito.
+  return /^[0-9]/.test(pascal) ? `C${pascal}` : pascal || 'Component'
+}
+
+export function camelCase(name: string): string {
+  const p = toPascalCase(name)
+  return p[0]!.toLowerCase() + p.slice(1)
+}
+
+/** Nombre del prop por el que entra el contenido. Prefiere el nombre del layer;
+ *  si es genérico, cae al contenido. */
+function slotName(layerName: string, text: string): string {
+  const clean = camelCase(layerName)
+  if (clean && !/^(text|label|content|frame|group)\d*$/i.test(clean)) return clean
+  return camelCase(text.split(/\s+/).slice(0, 3).join(' ')) || 'text'
+}
+
+/**
+ * Hash del contenido semántico: estructura, roles y layout. Sin nombres de
+ * archivo, sin timestamps, sin warnings.
+ *
+ * Es lo que da idempotencia: el mismo nodo de Figma dos veces se reconoce y se
+ * ofrece actualizar en vez de duplicar. Sin esto, a los dos meses hay
+ * HeroAboutUs, HeroAboutUs2 y HeroAboutUsNew.
+ */
+export function semanticHash(ir: IR): string {
+  const skeleton = (n: IRNode): unknown => ({
+    r: n.role, l: n.layout, t: n.tokens, lv: n.level,
+    c: (n.children ?? []).map(skeleton),
+  })
+  const payload = JSON.stringify({
+    layout: ir.layout,
+    tokens: ir.tokens,
+    variants: ir.variants,
+    children: ir.children.map(skeleton),
+  })
+  return createHash('sha256').update(payload).digest('hex').slice(0, 12)
+}
