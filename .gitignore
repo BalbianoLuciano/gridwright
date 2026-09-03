@@ -4,3 +4,9 @@ dist/
 .env
 .env.*
 !.env.example
+
+# gridwright
+*.tsbuildinfo
+coverage/
+.gridwright/runs/
+.gridwright/dashboard/
