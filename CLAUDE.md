@@ -2,21 +2,49 @@
 
 ## Qué es
 
-Una herramienta de maquetación completa. Lo dijo Luciano el 2026-09-03 al crear
-el repo, y **eso es todo lo que está definido**.
+Un pipeline end-to-end de maquetación: entra un nodo de Figma, sale un componente
+o una vista construida, verificada visualmente y registrada en el design system
+del proyecto. Se opera desde Claude Code.
 
-## Lo que NO está decidido
+**El principio rector**: el diseño entra como nodo, sale como sistema. Cada
+corrida deja el proyecto con más tokens resueltos, más componentes registrados y
+más superficie verificada. Si un componente sale bien pero no aportó nada al
+sistema, la corrida falló.
 
-No inventes ninguna de estas. Preguntá antes de escribir código:
+## La spec manda
 
-- **Qué maqueta**: ¿web (HTML/CSS)? ¿impresión / editorial? ¿ambas?
-- **Quién la usa**: ¿él solo? ¿diseñadores? ¿desarrolladores?
-- **Qué forma tiene**: ¿app de escritorio? ¿web? ¿CLI? ¿librería? ¿extensión?
-- **El stack**: nada elegido.
-- **Qué significa "completa"**: es la palabra que usó, y define el alcance.
+`specs/001-pipeline.md` define las 10 leyes, las 15 etapas y las fases de
+desarrollo. **Leerla antes de escribir código.** Cualquier decisión de
+implementación que contradiga una ley de ahí está mal.
 
-El nombre —grid + wright, el que fabrica— sugiere algo de grillas, pero **es una
-inferencia mía, no algo que él haya dicho**. No la tomes como dato.
+Las cuatro que más se olvidan:
+
+- **Ley 1** — el workflow es estado en disco (`.gridwright/runs/<id>/state.json`),
+  no texto en un prompt. El CLI orquesta, Claude actúa.
+- **Ley 2** — el árbol crudo de Figma nunca toca el LLM. Siempre pasa por el IR.
+- **Ley 5** — nada que mute el proyecto se escribe sin aprobación: `plan`,
+  `tokens` y `golden` son gates humanos.
+- **Ley 10** — el secreto no pasa por el modelo. **Claude nunca corre
+  `gw auth login`**: si falta el token de Figma, corta y le pide a la persona que
+  lo corra en su terminal con `! gw auth login`. Un token que atravesó el
+  transcript está comprometido.
+
+## Decidido
+
+| | |
+|---|---|
+| Stack | TypeScript + Node, pnpm workspaces, Vitest, Playwright |
+| Distribución | repo standalone + binario global `gw` + plugin de Claude Code |
+| Adaptadores | Vue 3 SFC y React 19, ambos Tailwind. Vue primero. |
+| Render | harness aislado que genera `gw` (Vite efímero) |
+| Umbral | score compuesto ≥ 90%, peor viewport |
+
+## Prior art
+
+- `prolicht/tools/figma/figma-image-extractor.cjs` — extracción de assets desde
+  la API de Figma + `sharp.trim()` + manifest. Se porta al pipeline.
+- `prolicht/FrontEndAgent/docs/` — el mismo workflow escrito en prosa. Gridwright
+  lo ejecuta en vez de sugerirlo.
 
 ## Cómo trabaja Luciano
 
