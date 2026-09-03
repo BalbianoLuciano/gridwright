@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" width="900" height="560" font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8a8681"/>
+    </marker>
+  </defs>
+
+  <rect width="900" height="560" fill="#fbfbfa"/>
+
+  <!-- SHELL -->
+  <rect x="60" y="36" width="780" height="112" rx="10" fill="#ffffff" stroke="#d9d7d2" stroke-width="1.5"/>
+  <text x="84" y="66" font-size="12" font-weight="700" fill="#7c3aed" letter-spacing="1.2">SHELL</text>
+  <text x="152" y="66" font-size="14" font-weight="600" fill="#1a1a1a">Claude Code plugin</text>
+  <text x="84" y="92" font-size="13" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#4a4a4a">commands/   skills/   hooks/   .mcp.json</text>
+  <text x="84" y="120" font-size="12.5" fill="#6b6b6b">Thin, no logic. It only teaches the protocol: ask the CLI, do the work, report back.</text>
+
+  <line x1="450" y1="148" x2="450" y2="188" stroke="#8a8681" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- ENGINE -->
+  <rect x="60" y="190" width="780" height="222" rx="10" fill="#ffffff" stroke="#d9d7d2" stroke-width="1.5"/>
+  <text x="84" y="220" font-size="12" font-weight="700" fill="#2563eb" letter-spacing="1.2">ENGINE</text>
+  <text x="160" y="220" font-size="14" font-weight="600" fill="#1a1a1a">the <tspan font-family="ui-monospace, SFMono-Regular, Menlo, monospace">gw</tspan> CLI — TypeScript / Node</text>
+  <text x="608" y="220" font-size="12" fill="#16a34a">■</text>
+  <text x="622" y="220" font-size="11.5" fill="#6b6b6b">built</text>
+  <text x="668" y="220" font-size="12" fill="#b9b5ae">■</text>
+  <text x="682" y="220" font-size="11.5" fill="#6b6b6b">phases 2–5</text>
+
+  <rect x="84" y="238" width="176" height="56" rx="7" fill="#f2f7ff" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="98" y="262" font-size="12.5" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#1a1a1a">core</text>
+  <text x="98" y="280" font-size="11" fill="#6b6b6b">state machine · IR types</text>
+
+  <rect x="272" y="238" width="176" height="56" rx="7" fill="#f2f7ff" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="286" y="262" font-size="12.5" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#1a1a1a">figma</text>
+  <text x="286" y="280" font-size="11" fill="#6b6b6b">API · distill · assets</text>
+
+  <rect x="460" y="238" width="176" height="56" rx="7" fill="#f2f7ff" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="474" y="262" font-size="12.5" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#1a1a1a">cli</text>
+  <text x="474" y="280" font-size="11" fill="#6b6b6b">the gw binary</text>
+
+  <rect x="648" y="238" width="168" height="56" rx="7" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="662" y="262" font-size="12.5" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">tokens</text>
+  <text x="662" y="280" font-size="11" fill="#a5a09a">ΔE match · write-back</text>
+
+  <rect x="84" y="308" width="176" height="56" rx="7" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="98" y="332" font-size="12.5" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">library</text>
+  <text x="98" y="350" font-size="11" fill="#a5a09a">scaffold · registry</text>
+
+  <rect x="272" y="308" width="176" height="56" rx="7" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="286" y="332" font-size="12.5" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">verify</text>
+  <text x="286" y="350" font-size="11" fill="#a5a09a">Playwright · metrics</text>
+
+  <rect x="460" y="308" width="176" height="56" rx="7" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="474" y="332" font-size="12.5" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">adapters</text>
+  <text x="474" y="350" font-size="11" fill="#a5a09a">vue3 · react19</text>
+
+  <rect x="648" y="308" width="168" height="56" rx="7" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="662" y="332" font-size="12.5" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">dashboard</text>
+  <text x="662" y="350" font-size="11" fill="#a5a09a">static report</text>
+
+  <text x="84" y="392" font-size="12.5" fill="#6b6b6b">The adapter boundary is sacred: it owns the file shape and the mount code, never the IR or the state machine.</text>
+
+  <line x1="270" y1="412" x2="270" y2="452" stroke="#8a8681" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="670" y1="412" x2="670" y2="452" stroke="#8a8681" stroke-width="1.5" marker-end="url(#a)"/>
+
+  <!-- OUTPUTS -->
+  <rect x="60" y="454" width="420" height="76" rx="10" fill="#ffffff" stroke="#d9d7d2" stroke-width="1.5"/>
+  <text x="84" y="480" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#1a1a1a">.gridwright/</text>
+  <text x="84" y="502" font-size="11.5" fill="#6b6b6b">runs/ state · IR · screenshots  —  scaffolding, gitignored</text>
+  <text x="84" y="519" font-size="11.5" fill="#6b6b6b">baselines/ golden tests  —  committed</text>
+
+  <rect x="500" y="454" width="340" height="76" rx="10" fill="#ffffff" stroke="#d9d7d2" stroke-width="1.5"/>
+  <text x="524" y="480" font-size="13" font-weight="600" fill="#1a1a1a">the consuming project</text>
+  <text x="524" y="502" font-size="11.5" fill="#6b6b6b">components · design tokens · regression tests</text>
+  <text x="524" y="519" font-size="11.5" fill="#6b6b6b">every run leaves more of all three</text>
+</svg>

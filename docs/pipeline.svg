@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 520" width="900" height="520" font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#b9b5ae"/></marker></defs>
+<rect width="900" height="520" fill="#fbfbfa"/>
+<text x="40" y="44" font-size="16" font-weight="700" fill="#1a1a1a">The pipeline</text>
+<text x="40" y="66" font-size="12.5" fill="#6b6b6b">Colour is who runs the stage. A bar on the left means a human gate. Dashed means not built yet.</text>
+<rect x="40" y="92" width="200" height="62" rx="8" fill="#fff7ec" stroke="#d97706" stroke-width="1.5"/>
+<rect x="40" y="92" width="4" height="62" rx="2" fill="#d97706"/>
+<text x="56" y="117" font-size="10.5" font-weight="700" fill="#6b6b6b">—</text>
+<text x="78" y="118" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#1a1a1a">auth</text>
+<text x="78" y="138" font-size="11" fill="#6b6b6b">you</text>
+<line x1="241" y1="123.0" x2="250" y2="123.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="252" y="92" width="200" height="62" rx="8" fill="#fff7ec" stroke="#d97706" stroke-width="1.5"/>
+<rect x="252" y="92" width="4" height="62" rx="2" fill="#d97706"/>
+<text x="268" y="117" font-size="10.5" font-weight="700" fill="#6b6b6b">0</text>
+<text x="290" y="118" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#1a1a1a">init</text>
+<text x="290" y="138" font-size="11" fill="#6b6b6b">you</text>
+<line x1="453" y1="123.0" x2="462" y2="123.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="464" y="92" width="200" height="62" rx="8" fill="#eff5ff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="480" y="117" font-size="10.5" font-weight="700" fill="#6b6b6b">1</text>
+<text x="502" y="118" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#1a1a1a">fetch</text>
+<text x="502" y="138" font-size="11" fill="#6b6b6b">code</text>
+<line x1="665" y1="123.0" x2="674" y2="123.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="676" y="92" width="200" height="62" rx="8" fill="#eff5ff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="692" y="117" font-size="10.5" font-weight="700" fill="#6b6b6b">2</text>
+<text x="714" y="118" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#1a1a1a">distill</text>
+<text x="714" y="138" font-size="11" fill="#6b6b6b">code</text>
+<path d="M852 155 L852 167 L64 167 L64 178" fill="none" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="40" y="180" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="56" y="205" font-size="10.5" font-weight="700" fill="#a5a09a">3</text>
+<text x="78" y="206" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">resolve</text>
+<text x="78" y="226" font-size="11" fill="#a5a09a">code</text>
+<line x1="241" y1="211.0" x2="250" y2="211.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="252" y="180" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<rect x="252" y="180" width="4" height="62" rx="2" fill="#d97706"/>
+<text x="268" y="205" font-size="10.5" font-weight="700" fill="#a5a09a">4</text>
+<text x="290" y="206" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">tokens</text>
+<text x="290" y="226" font-size="11" fill="#a5a09a">Claude  ·  mandatory</text>
+<line x1="453" y1="211.0" x2="462" y2="211.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="464" y="180" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<rect x="464" y="180" width="4" height="62" rx="2" fill="#d97706"/>
+<text x="480" y="205" font-size="10.5" font-weight="700" fill="#a5a09a">5</text>
+<text x="502" y="206" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">library:ensure</text>
+<text x="502" y="226" font-size="11" fill="#a5a09a">code  ·  mandatory</text>
+<line x1="665" y1="211.0" x2="674" y2="211.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="676" y="180" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="692" y="205" font-size="10.5" font-weight="700" fill="#a5a09a">6</text>
+<text x="714" y="206" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">survey</text>
+<text x="714" y="226" font-size="11" fill="#a5a09a">code</text>
+<path d="M852 243 L852 255 L64 255 L64 266" fill="none" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="40" y="268" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<rect x="40" y="268" width="4" height="62" rx="2" fill="#d97706"/>
+<text x="56" y="293" font-size="10.5" font-weight="700" fill="#a5a09a">7</text>
+<text x="78" y="294" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">plan</text>
+<text x="78" y="314" font-size="11" fill="#a5a09a">Claude</text>
+<line x1="241" y1="299.0" x2="250" y2="299.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="252" y="268" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="268" y="293" font-size="10.5" font-weight="700" fill="#a5a09a">8</text>
+<text x="290" y="294" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">author</text>
+<text x="290" y="314" font-size="11" fill="#a5a09a">Claude</text>
+<line x1="453" y1="299.0" x2="462" y2="299.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="464" y="268" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="480" y="293" font-size="10.5" font-weight="700" fill="#a5a09a">9</text>
+<text x="502" y="294" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">harness</text>
+<text x="502" y="314" font-size="11" fill="#a5a09a">code</text>
+<line x1="665" y1="299.0" x2="674" y2="299.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="676" y="268" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="692" y="293" font-size="10.5" font-weight="700" fill="#a5a09a">10</text>
+<text x="714" y="294" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">verify</text>
+<text x="714" y="314" font-size="11" fill="#a5a09a">code</text>
+<path d="M852 331 L852 343 L64 343 L64 354" fill="none" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="40" y="356" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="56" y="381" font-size="10.5" font-weight="700" fill="#a5a09a">11</text>
+<text x="78" y="382" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">refine</text>
+<text x="78" y="402" font-size="11" fill="#a5a09a">Claude</text>
+<line x1="241" y1="387.0" x2="250" y2="387.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="252" y="356" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<rect x="252" y="356" width="4" height="62" rx="2" fill="#d97706"/>
+<text x="268" y="381" font-size="10.5" font-weight="700" fill="#a5a09a">12</text>
+<text x="290" y="382" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">golden</text>
+<text x="290" y="402" font-size="11" fill="#a5a09a">you</text>
+<line x1="453" y1="387.0" x2="462" y2="387.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="464" y="356" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="480" y="381" font-size="10.5" font-weight="700" fill="#a5a09a">13</text>
+<text x="502" y="382" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">library:register</text>
+<text x="502" y="402" font-size="11" fill="#a5a09a">code  ·  mandatory</text>
+<line x1="665" y1="387.0" x2="674" y2="387.0" stroke="#b9b5ae" stroke-width="1.4" marker-end="url(#a)"/>
+<rect x="676" y="356" width="200" height="62" rx="8" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="692" y="381" font-size="10.5" font-weight="700" fill="#a5a09a">14</text>
+<text x="714" y="382" font-size="13" font-weight="600" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" fill="#8a8681">report</text>
+<text x="714" y="402" font-size="11" fill="#a5a09a">code</text>
+<line x1="40" y1="458" x2="860" y2="458" stroke="#e6e3de" stroke-width="1"/>
+<rect x="40" y="476" width="13" height="13" rx="3" fill="#eff5ff" stroke="#2563eb" stroke-width="1.5"/>
+<text x="61" y="487" font-size="11.5" fill="#4a4a4a">deterministic code</text>
+<rect x="190" y="476" width="13" height="13" rx="3" fill="#f5f0ff" stroke="#7c3aed" stroke-width="1.5"/>
+<text x="211" y="487" font-size="11.5" fill="#4a4a4a">Claude</text>
+<rect x="340" y="476" width="13" height="13" rx="3" fill="#fff7ec" stroke="#d97706" stroke-width="1.5"/>
+<text x="361" y="487" font-size="11.5" fill="#4a4a4a">you</text>
+<rect x="490" y="476" width="4" height="13" rx="2" fill="#d97706"/>
+<text x="502" y="487" font-size="11.5" fill="#4a4a4a">human gate</text>
+<rect x="620" y="476" width="13" height="13" rx="3" fill="#fafafa" stroke="#cfcbc4" stroke-width="1.5" stroke-dasharray="3 2"/>
+<text x="641" y="487" font-size="11.5" fill="#4a4a4a">phases 2–5</text>
+<text x="40" y="514" font-size="12" fill="#6b6b6b">Tokens are written <tspan font-weight="700" fill="#1a1a1a">before</tspan> the component (4 before 8). The other way round the model writes bg-[#1a1a1a] and someone refactors.</text>
+</svg>

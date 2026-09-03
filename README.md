@@ -4,6 +4,10 @@ End-to-end layout pipeline. A Figma node goes in; a built, visually verified
 component registered in the project's design system comes out. Driven from
 Claude Code.
 
+[![license: MIT](https://img.shields.io/badge/license-MIT-16a34a)](LICENSE)
+![status: phase 1 of 5](https://img.shields.io/badge/status-phase%201%20of%205-2563eb)
+![tests: 52](https://img.shields.io/badge/tests-52%20passing-16a34a)
+
 > **The design comes in as a node and leaves as a system.**
 >
 > Gridwright does not generate components: it builds the project's design system
@@ -27,6 +31,8 @@ looks simple. **A prompt is a suggestion.**
 Gridwright inverts the split. The state machine lives on disk and a CLI enforces
 it. Claude does not decide which stage comes next: it asks.
 
+![The control loop: gw next returns a directive, Claude does the creative work, gw verify measures, and the score decides whether the run advances or refines. state.json on disk is the single source of truth.](docs/protocol.svg)
+
 ```console
 $ gw next --json
 {
@@ -39,12 +45,7 @@ $ gw next --json
 }
 ```
 
-Claude does the creative part, writes files and runs `gw verify`. If the gate
-fails, the stage is still `refine`. There is no way to jump to `golden` without
-passing, because the CLI will not allow it. If the session drops, the state is
-still in `.gridwright/runs/<id>/state.json`.
-
-The split is explicit:
+The split of labour is explicit:
 
 | Code does this | The model does this |
 |---|---|
@@ -56,6 +57,27 @@ The split is explicit:
 
 If it can be checked with an assert, the model does not do it. If it needs
 judgment about code that already exists, the program does not do it.
+
+---
+
+## Architecture
+
+Three layers. The Claude Code plugin is a thin shell that only teaches the
+protocol; all the logic lives in the `gw` binary; the outputs land in the
+consuming project.
+
+![Architecture: a thin Claude Code plugin on top, the gw CLI in the middle split into eight packages of which core, figma and cli are built, and two outputs at the bottom — the .gridwright working directory and the consuming project.](docs/architecture.svg)
+
+```
+packages/
+├── core/     IR types, state machine, config, credentials
+├── figma/    API client, distill, asset extraction
+└── cli/      the gw binary
+```
+
+**Stack**: TypeScript, Node, pnpm workspaces. Vitest for the core, Playwright
+for verify, `sharp` for assets, `odiff` for the perceptual diff, `ts-morph` and
+`postcss` for the token write-back.
 
 ---
 
@@ -122,6 +144,8 @@ just expensive: it produces **worse** results, because the model latches onto
 the `absoluteBoundingBox` values it sees and writes `position: absolute`. The
 distillation always sits between Figma and the model.
 
+![Why the IR exists: a raw Figma tree of 2,000-5,000 nodes and about 312KB is distilled into a 120-line semantic IR of about 4KB, 99% smaller. Auto-layout maps to flex and variants map to props. A frame without auto-layout halts the pipeline.](docs/distill.svg)
+
 ```json
 {
   "name": "HeroAboutUs",
@@ -160,6 +184,24 @@ and halts.
 
 ---
 
+## The stages
+
+![The pipeline: sixteen stages from auth through report, colour-coded by who runs each one — deterministic code, Claude, or you. Human gates are marked with a bar; stages from phases 2 to 5 are dashed because they are not built yet.](docs/pipeline.svg)
+
+Three human gates: `plan`, `tokens` and `golden`. Nothing that mutates the
+project is written without approval. A badly generated component is rewritten in
+ten minutes; a contaminated token system is inherited forever.
+
+Three stages are mandatory and cannot be skipped even with a reason — `tokens`,
+`library:ensure` and `library:register`. They are the ones that build the
+system, and therefore the ones a hurried agent would skip first.
+
+And note the ordering of 4 and 8: **tokens are written before the component.**
+The other way round, the model writes `bg-[#1a1a1a]` and someone has to
+refactor.
+
+---
+
 ## Verification
 
 Figma's text engine and Chromium's differ in kerning and antialiasing: a
@@ -177,37 +219,6 @@ Threshold **90%**, over the **worst viewport, not the average**: if it breaks on
 mobile, it is broken. When it falls short, refine is not "try again" — it
 receives what failed and where, which is what makes it converge in two
 iterations instead of burning tokens up to the cap.
-
----
-
-## The stages
-
-| # | Stage | Who | Gate |
-|---|---|---|---|
-| — | `auth` | the person | precondition, once per machine |
-| 0 | `init` | human | once per project |
-| 1 | `fetch` | code | |
-| 2 | `distill` | code | halts if the IR comes out poor |
-| 3 | `resolve` | code | |
-| 4 | **`tokens`** | code + model | **human** · mandatory |
-| 5 | **`library:ensure`** | code | **human, first time** · mandatory |
-| 6 | `survey` | code | |
-| 7 | `plan` | model | **human** |
-| 8 | `author` | model | |
-| 9 | `harness` | code | |
-| 10 | `verify` | code | score ≥ 90 |
-| 11 | `refine` | model | cap of 4 iterations |
-| 12 | `golden` | human | **human** |
-| 13 | **`library:register`** | code | mandatory |
-| 14 | `report` | code | |
-
-Three human gates: `plan`, `tokens` and `golden`. Nothing that mutates the
-project is written without approval. A badly generated component is rewritten in
-ten minutes; a contaminated token system is inherited forever.
-
-And note the ordering of 4 and 8: **tokens are written before the component.**
-The other way round, the model writes `bg-[#1a1a1a]` and someone has to
-refactor.
 
 ---
 
@@ -237,15 +248,11 @@ pnpm typecheck
 pnpm build
 ```
 
-```
-packages/
-├── core/     IR types, state machine, config, credentials
-├── figma/    API client, distill, asset extraction
-└── cli/      the `gw` binary
-```
-
 The `distill` tests run against fixtures shaped like real Figma API responses,
 including a frame without auto-layout that **must** make the pipeline halt.
+
+The diagrams in `docs/` are hand-written SVG — no build step, no diagramming
+dependency, and they render on npm as well as on GitHub.
 
 ## Non-goals
 
@@ -257,4 +264,4 @@ including a frame without auto-layout that **must** make the pipeline halt.
 
 ## License
 
-MIT
+[MIT](LICENSE) © Luciano Balbiano
