@@ -135,6 +135,16 @@ export function advance(
     )
   }
   if (result.status === 'skipped') {
+    // A view is a composition. Skipping survey there means reimplementing the
+    // button, the card and the hero that already exist, and six views later
+    // nobody can tell which Card is the real one. For a single component it is
+    // merely useful; here it is the whole point.
+    if (stage === 'survey' && state.mode === 'view') {
+      throw new Error(
+        'survey cannot be skipped in view mode. A view without it rebuilds what ' +
+          'the project already has.',
+      )
+    }
     if (STAGE_SPECS[stage].mandatory) {
       throw new Error(
         `"${stage}" is mandatory and cannot be skipped. ` +

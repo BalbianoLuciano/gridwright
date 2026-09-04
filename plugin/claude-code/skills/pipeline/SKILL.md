@@ -108,6 +108,12 @@ points at. The raw tree is 2,000+ nodes of absolute coordinates; reading it
 makes the output worse, not better — it pulls you toward `position: absolute`.
 If you find yourself opening `figma-node.json`, stop.
 
+**In view mode, `survey` is not optional.** A view is a composition; skipping
+the survey rebuilds the button, the card and the hero the project already has,
+and six views later nobody can tell which Card is the real one. Read what it
+proposes before writing anything new — it says which signal it matched on, and a
+name match is worth opening the file for.
+
 **Never skip a stage, including the ones that look pointless for this case.**
 `gw` will refuse anyway. Three stages — `tokens`, `library:ensure`,
 `library:register` — cannot be skipped at all: they are what makes a run add to

@@ -5,8 +5,8 @@ component registered in the project's design system comes out. Driven from
 Claude Code.
 
 [![license: MIT](https://img.shields.io/badge/license-MIT-16a34a)](LICENSE)
-![status: phase 4 of 5](https://img.shields.io/badge/status-phase%204%20of%205-2563eb)
-![tests: 131](https://img.shields.io/badge/tests-131%20passing-16a34a)
+![status: all 5 phases built](https://img.shields.io/badge/status-all%205%20phases%20built-16a34a)
+![tests: 142](https://img.shields.io/badge/tests-142%20passing-16a34a)
 
 > **The design comes in as a node and leaves as a system.**
 >
@@ -15,10 +15,13 @@ Claude Code.
 > registered components and more verified surface. If a component turns out fine
 > but contributed nothing to the system, the run failed.
 
-**Status: phases 1–4 built.** A run goes from a Figma node to a registered
-component: fetch, distill, resolve, write tokens, author, render, score, refine,
-freeze a baseline, register. What is missing is `survey` — and with it view
-mode, which is the one thing that needs it. See the [roadmap](#roadmap).
+**Status: all five phases built.** A run goes from a Figma node to a registered
+component, in either mode: fetch, distill, resolve, write tokens, survey, plan,
+author, render, score, refine, freeze a baseline, register, report.
+
+What that does not mean is finished. It has been calibrated against components
+built by hand and run against a real project's 54 components, but it has not
+built anything anyone shipped yet. See [known gaps](#known-gaps).
 
 ---
 
@@ -246,7 +249,7 @@ iterations instead of burning tokens up to the cap.
 | 2 | `verify` with Playwright, on a hand-written component | ✅ |
 | 3 | Claude Code plugin, `author`, `refine` | ✅ |
 | 4 | `tokens`, `library`, `golden`, dashboard | ✅ |
-| 5 | View mode: `survey` and composition | ⬜ |
+| 5 | View mode: `survey` and composition | ✅ |
 
 **Phase 2 comes before phase 3 on purpose.** If you cannot measure, you cannot
 close the loop: a generative pipeline without a calibrated metric is a text
@@ -258,7 +261,7 @@ generator with extra steps. The ruler first, then the factory.
 
 ```bash
 pnpm install
-pnpm test        # 131 tests
+pnpm test        # 142 tests
 pnpm typecheck
 pnpm build
 ```
@@ -268,6 +271,27 @@ including a frame without auto-layout that **must** make the pipeline halt.
 
 The diagrams in `docs/` are hand-written SVG — no build step, no diagramming
 dependency, and they render on npm as well as on GitHub.
+
+## Known gaps
+
+Written down rather than left to be discovered:
+
+- **The threshold is lenient when there is no reference image.** The perceptual
+  dimension drops out, the other two are reweighted, and structural ends up
+  carrying two thirds — so a component visibly 8px off can still clear 90. A
+  per-dimension floor would fix it; today it is only pinned by a test.
+- **`survey` is name-first.** It matches what a design and a component are
+  called, falls back to a rough shape, and says which signal it used. It will
+  miss a component that does the same job under a different name.
+- **`gw init` at the root of a nested project guesses wrong rather than
+  failing.** A React app under `src/theme/` is detected as `vue3` with no
+  tokens. Run it where the frontend actually lives.
+- **The adapter is named `react19` regardless of the installed version.** It
+  does not matter until the adapter writes code — React 19 dropped
+  `forwardRef` and made `ref` a normal prop.
+- **The registry stores raw values, not token names.** `resolve` does not
+  rewrite `ir.json`, so a component records `#1a1a1a` where it should record
+  `colors.neutral.900`.
 
 ## Non-goals
 

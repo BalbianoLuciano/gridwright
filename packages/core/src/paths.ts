@@ -22,6 +22,7 @@ export const paths = {
   measurements: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'measurements.json'),
   rawTokens: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'raw-tokens.json'),
   resolutions: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'resolutions.json'),
+  survey: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'survey.json'),
   reference: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'reference.png'),
   runAssets: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'assets'),
   manifest: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'manifest.json'),

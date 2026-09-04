@@ -169,3 +169,4 @@ function sortKeys(registry: Registry): Registry {
 export function findByHash(registry: Registry, irHash: string): [string, RegistryEntry] | null {
   return Object.entries(registry).find(([, e]) => e.figma.irHash === irHash) ?? null
 }
+export * from './survey.js'

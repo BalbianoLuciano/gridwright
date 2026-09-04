@@ -73,6 +73,7 @@ export const STAGE_SPECS: Record<Stage, StageSpec> = {
     id: 'survey', actor: 'code', gate: false, mandatory: false, phase: 5,
     summary: 'Index the repo and look for reusable components',
   },
+
   'plan': {
     id: 'plan', actor: 'agent', gate: true, mandatory: false, phase: 3,
     summary: 'Propose files, props and what gets reused',
@@ -111,11 +112,14 @@ export const STAGE_SPECS: Record<Stage, StageSpec> = {
  * Development phase that is built today. Anything in a higher phase reports
  * "not implemented" instead of pretending.
  *
- * Phases 1 through 4 are built, which means a run can now go from a Figma node
- * to a registered component without stopping at a stage that does not exist.
- * Only `survey` — phase 5, and view mode with it — is still missing.
+ * All five phases are built: a run goes from a Figma node to a registered
+ * component, in either mode.
+ *
+ * Kept as a constant rather than deleted, because the next stage added will
+ * need it again and because `blocked` is how the protocol admits a gap instead
+ * of pretending a stage ran.
  */
-export const IMPLEMENTED_THROUGH_PHASE = 4
+export const IMPLEMENTED_THROUGH_PHASE = 5
 
 /** The first stage a run cannot get past today, or null when it can run through. */
 export function firstBlockingStage(): Stage | null {

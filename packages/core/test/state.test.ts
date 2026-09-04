@@ -79,34 +79,46 @@ describe('protocol — what Claude gets back from `gw next`', () => {
     expect(directive(s, '/repo').gate).toMatch(/human approval/)
   })
 
-  // Not pretending a stage ran is part of the contract.
-  it('says explicitly when a stage is not built yet', () => {
-    const s = make()
-    for (const st of STAGES.slice(1, STAGES.indexOf('survey'))) {
-      advance(s, st, { status: st === 'tokens' || st === 'library:ensure' ? 'done' : 'done' })
-    }
-    expect(s.stage).toBe('survey')
-    expect(directive(s, '/repo').blocked?.phase).toBe(5)
-  })
-
-  it('knows which stages are built and which are not', () => {
-    for (const s of ['fetch', 'distill', 'resolve', 'tokens', 'library:ensure',
-                     'plan', 'author', 'verify', 'refine', 'golden',
-                     'library:register', 'report'] as const) {
-      expect(isImplemented(s)).toBe(true)
-    }
-    // Phase 5, and view mode with it.
-    expect(isImplemented('survey')).toBe(false)
+  it('every stage is built, so nothing reports as blocked', () => {
+    for (const s of STAGES) expect(isImplemented(s)).toBe(true)
+    expect(firstBlockingStage()).toBeNull()
   })
 
   /**
-   * The pipeline used to stop at `resolve`, three stages before `author`,
-   * because `tokens` and `library:ensure` were mandatory and did not exist yet.
-   * Phase 4 closed that, and this pins where the remaining edge is so the next
-   * gap is as visible as that one turned out to be.
+   * `blocked` is kept even with nothing to block. It is how the protocol admits
+   * a gap instead of pretending a stage ran, and the next stage added will need
+   * it — the last two gaps (`resolve`, then `survey`) both read as finished
+   * from the outside until something said otherwise.
    */
-  it('the only stage a run cannot get past is survey', () => {
-    expect(firstBlockingStage()).toBe('survey')
-    expect(STAGES.indexOf('survey')).toBeGreaterThan(STAGES.indexOf('library:ensure'))
+  it('still reports a gap when one exists', () => {
+    const s = make()
+    for (const st of STAGES.slice(1, STAGES.indexOf('report'))) {
+      advance(s, st, { status: 'done' })
+    }
+    const d = directive(s, '/repo')
+    expect(d.stage).toBe('report')
+    expect(d.blocked).toBeUndefined()
+  })
+
+  // A view is a composition: skipping survey there rebuilds the button, the
+  // card and the hero the project already has.
+  it('survey cannot be skipped in view mode', () => {
+    const view = newRunState({
+      id: 'home-01', mode: 'view', url: 'x', fileKey: 'X', nodeId: '1:2', name: 'HomePage',
+    })
+    for (const st of STAGES.slice(1, STAGES.indexOf('survey'))) {
+      advance(view, st, { status: 'done' })
+    }
+    expect(() => advance(view, 'survey', { status: 'skipped', reason: 'nothing to reuse' }))
+      .toThrow(/cannot be skipped in view mode/)
+  })
+
+  it('but can be skipped for a single component', () => {
+    const s = make()
+    for (const st of STAGES.slice(1, STAGES.indexOf('survey'))) {
+      advance(s, st, { status: 'done' })
+    }
+    expect(() => advance(s, 'survey', { status: 'skipped', reason: 'single component, nothing to compose' }))
+      .not.toThrow()
   })
 })

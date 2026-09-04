@@ -17,6 +17,7 @@ import { runResolve, runTokens } from './commands/tokens.js'
 import { runEnsure, runRegister } from './commands/library.js'
 import { runGolden } from './commands/golden.js'
 import { runReport } from './commands/report.js'
+import { runSurvey } from './commands/survey.js'
 import { bold, dim, fail, green } from './ui.js'
 import { FigmaError } from '@gridwright/figma'
 
@@ -41,6 +42,7 @@ const HELP = `${bold('gw')} — gridwright
     gw resolve                 sort design values into exact / near / new
     gw tokens [--approve]      write the new ones — ${dim('human gate')}
       --names <json|path>      names for them, in the project's convention
+    gw survey                  what already exists that this could reuse
     gw library ensure [--approve]
     gw library register --component <path>
     gw golden [--approve]      freeze the regression baseline — ${dim('human gate')}
@@ -169,6 +171,9 @@ async function main(): Promise<void> {
       if (args.sub === 'register') return runRegister(root, libArgs)
       return fail(`\`gw library ${args.sub ?? ''}\` does not exist.`, 'Options: ensure, register')
     }
+
+    case 'survey':
+      return runSurvey(root, { run: args.values.get('run'), json: args.flags.has('json') })
 
     case 'golden':
       return runGolden(root, {
