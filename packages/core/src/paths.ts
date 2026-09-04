@@ -20,6 +20,8 @@ export const paths = {
   ir: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'ir.json'),
   // Separate file, separate audience: the model reads ir.json, verify reads this.
   measurements: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'measurements.json'),
+  rawTokens: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'raw-tokens.json'),
+  resolutions: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'resolutions.json'),
   reference: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'reference.png'),
   runAssets: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'assets'),
   manifest: (r: string, id: string) => join(r, GW_DIR, 'runs', id, 'manifest.json'),

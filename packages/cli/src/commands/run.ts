@@ -161,6 +161,9 @@ async function runDistill(root: string, state: RunState): Promise<void> {
 
   writeFileSync(paths.ir(root, state.id), JSON.stringify(ir, null, 2) + '\n')
   writeFileSync(paths.measurements(root, state.id), JSON.stringify(measurements, null, 2) + '\n')
+  // Kept for `resolve`, which runs later and cannot re-derive them without
+  // re-fetching the whole tree.
+  writeFileSync(paths.rawTokens(root, state.id), JSON.stringify(rawTokens, null, 2) + '\n')
 
   const rawSize = readFileSync(paths.rawTree(root, state.id), 'utf8').length
   const irSize = JSON.stringify(ir).length

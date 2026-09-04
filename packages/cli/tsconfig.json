@@ -16,6 +16,12 @@
     },
     {
       "path": "../verify"
+    },
+    {
+      "path": "../tokens"
+    },
+    {
+      "path": "../library"
     }
   ]
 }

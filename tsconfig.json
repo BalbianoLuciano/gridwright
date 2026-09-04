@@ -8,6 +8,12 @@
       "path": "packages/figma"
     },
     {
+      "path": "packages/tokens"
+    },
+    {
+      "path": "packages/library"
+    },
+    {
       "path": "packages/verify"
     },
     {

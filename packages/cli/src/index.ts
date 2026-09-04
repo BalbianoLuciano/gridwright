@@ -13,6 +13,8 @@ import { build, printNext, status, showIr } from './commands/run.js'
 import { runVerify } from './commands/verify.js'
 import { done, skip, markFailed } from './commands/advance.js'
 import { refine } from './commands/refine.js'
+import { runResolve, runTokens } from './commands/tokens.js'
+import { runEnsure, runRegister } from './commands/library.js'
 import { bold, dim, fail, green } from './ui.js'
 import { FigmaError } from '@gridwright/figma'
 
@@ -32,6 +34,13 @@ const HELP = `${bold('gw')} — gridwright
     gw next [--json]           which stage is up and who runs it
     gw status [--json]         runs and the stage each one is on
     gw ir [<run-id>]           print a run's IR
+
+  ${bold('Design system')}
+    gw resolve                 sort design values into exact / near / new
+    gw tokens [--approve]      write the new ones — ${dim('human gate')}
+      --names <json|path>      names for them, in the project's convention
+    gw library ensure [--approve]
+    gw library register --component <path>
 
   ${bold('Verification')}
     gw verify --component <path> --figma "<url>"
@@ -133,6 +142,28 @@ async function main(): Promise<void> {
         props: args.values.get('props'),
         json: args.flags.has('json'),
       })
+
+    case 'resolve':
+      return runResolve(root, { run: args.values.get('run'), json: args.flags.has('json') })
+
+    case 'tokens':
+      return runTokens(root, {
+        run: args.values.get('run'),
+        names: args.values.get('names'),
+        approve: args.flags.has('approve'),
+        json: args.flags.has('json'),
+      })
+
+    case 'library': {
+      const libArgs = {
+        run: args.values.get('run'),
+        component: args.values.get('component'),
+        approve: args.flags.has('approve'),
+      }
+      if (args.sub === 'ensure') return runEnsure(root, libArgs)
+      if (args.sub === 'register') return runRegister(root, libArgs)
+      return fail(`\`gw library ${args.sub ?? ''}\` does not exist.`, 'Options: ensure, register')
+    }
 
     case 'done':
       return done(root, transitionArgs(args))
