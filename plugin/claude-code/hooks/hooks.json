@@ -1,0 +1,18 @@
+{
+  "description": "Gridwright — surfaces an open run when a session starts, so work does not get silently abandoned mid-pipeline",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh",
+            "timeout": 5,
+            "statusMessage": "Checking for an open gridwright run..."
+          }
+        ]
+      }
+    ]
+  }
+}

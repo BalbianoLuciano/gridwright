@@ -88,6 +88,17 @@ npm i -g @gridwright/cli     # the engine
 gw auth login                # once per machine
 ```
 
+And in Claude Code, the plugin that teaches it the protocol:
+
+```
+/plugin marketplace add BalbianoLuciano/gridwright
+/plugin install gridwright@gridwright
+```
+
+The plugin is a thin shell — three commands, one skill, one hook. It holds no
+logic: it teaches Claude to ask `gw next` and obey, and it surfaces a run left
+open in a previous session. Everything it knows, the CLI enforces anyway.
+
 **You type the Figma token yourself, in your terminal.** Never through the
 agent: once it is in a message it is in the transcript, in the context and in
 persistent memory, and has to be treated as compromised. Inside Claude Code, the
@@ -229,7 +240,7 @@ iterations instead of burning tokens up to the cap.
 | 0 | The spec | ✅ [`specs/001-pipeline.md`](specs/001-pipeline.md) |
 | 1 | CLI, state machine, `fetch`, `distill` | ✅ |
 | 2 | `verify` with Playwright, on a hand-written component | ⬜ |
-| 3 | Claude Code plugin, `author`, `refine` | ⬜ |
+| 3 | Claude Code plugin, `author`, `refine` | 🔨 plugin shell done |
 | 4 | `tokens`, `library`, `golden`, dashboard | ⬜ |
 | 5 | View mode: `survey` and composition | ⬜ |
 

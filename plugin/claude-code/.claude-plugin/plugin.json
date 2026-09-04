@@ -1,0 +1,9 @@
+{
+  "name": "gridwright",
+  "description": "End-to-end layout pipeline: a Figma node goes in, a built and visually verified component comes out. The gw CLI owns the workflow; Claude does the parts that cannot be measured.",
+  "version": "0.1.0",
+  "author": { "name": "Luciano Balbiano" },
+  "homepage": "https://github.com/BalbianoLuciano/gridwright",
+  "repository": "https://github.com/BalbianoLuciano/gridwright",
+  "license": "MIT"
+}
