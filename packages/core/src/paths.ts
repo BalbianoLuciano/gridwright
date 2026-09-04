@@ -26,9 +26,19 @@ export const paths = {
   dashboard: (r: string) => join(r, GW_DIR, 'dashboard'),
 }
 
-/** What `gw init` appends to the project's .gitignore. */
-export const GITIGNORE_BLOCK = `
+/**
+ * What `gw init` appends to the project's .gitignore.
+ *
+ * `prefix` is the project's path relative to the .gitignore that will hold the
+ * block, because gitignore patterns resolve against their own file. A project
+ * nested under src/theme/ needs `src/theme/<name>/.gridwright/runs/`, not a
+ * bare `.gridwright/runs/`.
+ */
+export function gitignoreBlock(prefix = ''): string {
+  const at = prefix ? `${prefix.replace(/\/+$/, '')}/` : ''
+  return `
 # gridwright — runs and dashboard are scaffolding; baselines are tests
-${GW_DIR}/runs/
-${GW_DIR}/dashboard/
+${at}${GW_DIR}/runs/
+${at}${GW_DIR}/dashboard/
 `
+}

@@ -9,10 +9,10 @@
  */
 
 import { existsSync, readFileSync, appendFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, dirname, basename, resolve } from 'node:path'
 import {
   DEFAULT_CONFIG, writeConfig, configPath, loadConfig, validateConfig,
-  GITIGNORE_BLOCK, paths, type GridwrightConfig, type Framework,
+  gitignoreBlock, paths, type GridwrightConfig, type Framework,
 } from '@gridwright/core'
 import { ok, info, warn, fail, dim, table, bold } from '../ui.js'
 
@@ -116,11 +116,47 @@ function detectLibraryDir(root: string): string | null {
   return null
 }
 
+/**
+ * Finds the .gitignore that should hold our entries, walking up to the repo
+ * root.
+ *
+ * Writing a fresh .gitignore next to the config looks harmless until the
+ * project is nested: santillanafrancais keeps its theme in
+ * src/theme/<name>/, and doing that dropped a second, near-empty .gitignore
+ * into the repo when a perfectly good one already sat at the top.
+ *
+ * Returns the file to append to and the project's path relative to it, since
+ * gitignore patterns resolve against their own file.
+ */
+export function findGitignore(root: string): { file: string; prefix: string } {
+  let dir = resolve(root)
+  let prefix = ''
+  for (let up = 0; up < 20; up++) {
+    const candidate = join(dir, '.gitignore')
+    if (existsSync(candidate)) return { file: candidate, prefix }
+
+    // Stop at the repo boundary: past it we would be touching someone else's
+    // ignore file.
+    if (existsSync(join(dir, '.git'))) break
+
+    const parent = dirname(dir)
+    if (parent === dir) break
+    prefix = prefix ? `${basename(dir)}/${prefix}` : basename(dir)
+    dir = parent
+  }
+  // Nothing to reuse — create one at the project itself.
+  return { file: join(root, '.gitignore'), prefix: '' }
+}
+
 function ensureGitignore(root: string): void {
-  const p = join(root, '.gitignore')
-  const current = existsSync(p) ? readFileSync(p, 'utf8') : ''
-  if (current.includes('.gridwright/runs')) return
-  if (existsSync(p)) appendFileSync(p, GITIGNORE_BLOCK)
-  else writeFileSync(p, GITIGNORE_BLOCK.trimStart())
-  info('Added to .gitignore: runs/ and dashboard/ (baselines NOT — they are tests)')
+  const { file, prefix } = findGitignore(root)
+  const current = existsSync(file) ? readFileSync(file, 'utf8') : ''
+  const block = gitignoreBlock(prefix)
+  if (current.includes(`${prefix ? prefix + '/' : ''}.gridwright/runs`)) return
+
+  if (existsSync(file)) appendFileSync(file, block)
+  else writeFileSync(file, block.trimStart())
+
+  const where = file === join(root, '.gitignore') ? '.gitignore' : file
+  info(`Added to ${where}: runs/ and dashboard/ (baselines NOT — they are tests)`)
 }
