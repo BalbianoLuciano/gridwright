@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { readTailwindConfig } from '../src/read.js'
 import { resolveTokens, summarize, overBudget, toPx } from '../src/resolve.js'
 import { withDefaults, isFrameworkDefault } from '../src/defaults.js'
+import { sameShadow, parseShadow } from '../src/shadow.js'
 import type { RawToken } from '@gridwright/core'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -156,5 +157,40 @@ describe('the scale the framework already provides', () => {
   // knowing none.
   it('adds nothing when the project is not on Tailwind', () => {
     expect(withDefaults([], 'css-vars')).toHaveLength(0)
+  })
+})
+
+/**
+ * Shadows, from a real run.
+ *
+ * santillanafrancais already had `boxShadow.button` with exactly the layers
+ * gridwright was proposing to add. Two things hid it: the same stack was
+ * written `rgb(10 13 18 / 0.05)` in the config and `rgba(10, 13, 18, 0.05)` by
+ * Figma, and the layers came out in opposite orders.
+ */
+describe('shadows compare as painted layers, not as text', () => {
+  const config = 'inset 0 0 0 1px rgb(10 13 18 / 0.18), inset 0 -2px 0 0 rgb(10 13 18 / 0.05), 0 1px 2px 0 rgb(10 13 18 / 0.05)'
+  const figma = '0px 1px 2px 0px rgba(10, 13, 18, 0.05), inset 0px -2px 0px 0px rgba(10, 13, 18, 0.05), inset 0px 0px 0px 1px rgba(10, 13, 18, 0.18)'
+
+  it('sees through both colour notations and a different layer order', () => {
+    expect(sameShadow(config, figma)).toBe(true)
+  })
+
+  // Splitting on every comma tears rgba(10, 13, 18, 0.05) into four pieces,
+  // which is how two identical shadows end up compared as nonsense.
+  it('splits layers without splitting inside rgba()', () => {
+    expect(parseShadow(figma)).toHaveLength(3)
+  })
+
+  it('0 and 0px are the same length', () => {
+    expect(sameShadow('0 2px 4px 0 #000', '0px 2px 4px 0px #000')).toBe(true)
+  })
+
+  it('an extra layer is a different shadow', () => {
+    expect(sameShadow('0 1px 2px 0 #000', '0 1px 2px 0 #000, 0 4px 8px 0 #000')).toBe(false)
+  })
+
+  it('inset is part of the identity', () => {
+    expect(sameShadow('0 1px 2px 0 #000', 'inset 0 1px 2px 0 #000')).toBe(false)
   })
 })

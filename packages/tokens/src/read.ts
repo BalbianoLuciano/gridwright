@@ -181,7 +181,7 @@ function collect(
     if (args.length === 1 && first?.isKind?.(SyntaxKind.StringLiteral)) {
       const resolved = literals.get(first.getLiteralValue())
       if (resolved) {
-        out.push({ name: path, kind, value: resolved, comparable: isComparable(resolved), source })
+        out.push({ name: path, kind, value: resolved, comparable: isComparable(resolved, kind), source })
         return
       }
     }
@@ -189,7 +189,7 @@ function collect(
 
   if (node.isKind?.(SyntaxKind.StringLiteral) || node.isKind?.(SyntaxKind.NoSubstitutionTemplateLiteral)) {
     const value = node.getLiteralValue?.() ?? unquote(node.getText())
-    out.push({ name: path, kind, value, comparable: isComparable(value), source })
+    out.push({ name: path, kind, value, comparable: isComparable(value, kind), source })
     return
   }
 
@@ -205,10 +205,40 @@ function collect(
   out.push({ name: path, kind, value: node.getText?.() ?? '', comparable: false, source })
 }
 
-/** A value we can hold against a design value: a hex, or a plain length. */
-function isComparable(value: string): boolean {
-  return /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value.trim())
-    || /^-?\d+(\.\d+)?(px|rem|em|%)$/.test(value.trim())
+/**
+ * Whether a value can be held against a design value — which depends on what
+ * kind of value it is.
+ *
+ * Checking only for a hex or a bare length marked every shadow, gradient and
+ * font stack as unreadable, so they never matched anything and every one
+ * arrived as a token to create. `boxShadow.button` was sitting right there
+ * while gridwright proposed to add it again.
+ *
+ * What genuinely cannot be compared is an expression we did not evaluate: a
+ * function call left unresolved, or a template with substitutions in it.
+ */
+function isComparable(value: string, kind: TokenKind = 'other'): boolean {
+  const v = value.trim()
+  if (v === '') return false
+  // An expression we could not resolve. Everything else is a literal.
+  if (/\$\{|\(\s*\)|=>/.test(v)) return false
+
+  switch (kind) {
+    case 'color':
+      return /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v) || /^rgba?\(/i.test(v)
+    case 'spacing':
+    case 'radius':
+    case 'border':
+      return /^-?\d+(\.\d+)?(px|rem|em|%)?$/.test(v)
+    case 'shadow':
+      // Comparable when it reads as layers; `sameShadow` does the rest.
+      return v !== 'none' && /\d/.test(v)
+    case 'typography':
+      return true
+    default:
+      return /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v)
+        || /^-?\d+(\.\d+)?(px|rem|em|%)$/.test(v)
+  }
 }
 
 /** Tailwind v4's `@theme` block, and plain custom properties. */
@@ -222,7 +252,7 @@ export function readCss(absPath: string, label: string, target?: string): TokenS
     const value = m[2]!.trim()
     const kind = kindFromName(name)
     sections.add(name.split('-')[0]!)
-    tokens.push({ name: `--${name}`, kind, value, comparable: isComparable(value), source: label })
+    tokens.push({ name: `--${name}`, kind, value, comparable: isComparable(value, kind), source: label })
   }
 
   return {

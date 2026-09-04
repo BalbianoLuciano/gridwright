@@ -11,6 +11,7 @@
 
 import { deltaE, type RawToken } from '@gridwright/core'
 import type { ExistingToken, TokenKind } from './read.js'
+import { sameShadow } from './shadow.js'
 
 export type Bucket = 'exact' | 'near' | 'new'
 
@@ -49,6 +50,13 @@ function resolveOne(raw: RawToken, existing: ExistingToken[], opts: ResolveOptio
   if (raw.kind === 'border') return resolveComposite(raw, existing, opts, borderParts(raw.value))
   if (raw.kind === 'typography') return resolveComposite(raw, existing, opts, typographyParts(raw.value))
   if (raw.kind === 'gradient') return resolveComposite(raw, existing, opts, gradientParts(raw.value))
+  if (raw.kind === 'shadow') {
+    // Compared as painted layers rather than as text: the same stack is written
+    // one way by Figma and another by a config, and often in another order.
+    const match = candidates.find((c) => sameShadow(c.value, raw.value))
+    if (match) return { bucket: 'exact', raw, match }
+    return { bucket: 'new', raw, note: 'no shadow in the system paints the same layers' }
+  }
 
   const exact = candidates.find((c) => normalize(c.value) === normalize(raw.value))
   if (exact) return { bucket: 'exact', raw, match: exact }
