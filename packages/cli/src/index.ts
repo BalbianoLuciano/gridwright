@@ -9,7 +9,7 @@
 
 import { authLogin, authStatus, authLogout } from './commands/auth.js'
 import { init } from './commands/init.js'
-import { build, printNext, status, showIr } from './commands/run.js'
+import { build, printNext, status, showIr, resume } from './commands/run.js'
 import { runVerify } from './commands/verify.js'
 import { done, skip, markFailed } from './commands/advance.js'
 import { refine } from './commands/refine.js'
@@ -32,8 +32,9 @@ const HELP = `${bold('gw')} — gridwright
     gw init [--force]          configure this repo
 
   ${bold('Run')}
-    gw build <figma-url>       open a run and execute as far as it goes
+    gw build <figma-url>       open a run and run every automatic stage
       --view                   view mode instead of component mode
+    gw continue                carry on from wherever the run is
     gw next [--json]           which stage is up and who runs it
     gw status [--json]         runs and the stage each one is on
     gw ir [<run-id>]           print a run's IR
@@ -200,6 +201,9 @@ async function main(): Promise<void> {
         focus: args.values.get('focus'),
         json: args.flags.has('json'),
       })
+
+    case 'continue':
+      return resume(root, args.values.get('run'))
 
     case 'next':
       return printNext(root, null, { json: args.flags.has('json') })

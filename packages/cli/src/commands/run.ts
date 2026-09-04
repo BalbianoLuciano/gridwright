@@ -18,6 +18,7 @@ import {
   toPascalCase, slugify, type FigmaNode,
 } from '@gridwright/figma'
 import { ok, fail, info, warn, step, dim, bold, green, yellow, table, missingCredentials } from '../ui.js'
+import { autorun, printStop } from './autorun.js'
 
 function requireConfig(root: string): GridwrightConfig {
   const config = loadConfig(root)
@@ -104,8 +105,22 @@ export async function build(root: string, url: string, opts: { mode?: 'component
   await runFetch(root, state, doc, client)
   await runDistill(root, state)
 
-  console.log()
-  printNext(root, state, { json: false })
+  // Then as far as the CLI legitimately can. It stops at a gate, at a stage
+  // that is the model's, or at one missing an input — and says which.
+  printStop(autorun(root, state))
+}
+
+/**
+ * Picks a run back up after a gate.
+ *
+ * The same chaining `build` does, from wherever the run currently sits. Without
+ * it, approving a gate leaves you re-running stages by hand one at a time for
+ * no reason — the CLI already knows which ones it can do.
+ */
+export function resume(root: string, id?: string): void {
+  const run = id ? loadState(root, id) : activeRun(root)
+  if (!run) fail('No open run.', 'Start one with `gw build "<figma-url>"`.')
+  printStop(autorun(root, run))
 }
 
 async function runFetch(root: string, state: RunState, doc: FigmaNode, client: FigmaClient): Promise<void> {
