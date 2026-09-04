@@ -46,13 +46,88 @@ function resolveOne(raw: RawToken, existing: ExistingToken[], opts: ResolveOptio
 
   if (raw.kind === 'color') return resolveColor(raw, candidates, opts)
   if (raw.kind === 'spacing' || raw.kind === 'radius') return resolveLength(raw, candidates, opts)
+  if (raw.kind === 'border') return resolveComposite(raw, existing, opts, borderParts(raw.value))
+  if (raw.kind === 'typography') return resolveComposite(raw, existing, opts, typographyParts(raw.value))
 
-  // Typography, shadows, gradients and borders are compared as written. They
-  // are tuples rather than single quantities, and "near" has no meaning for
-  // them — a line-height 2px off is a different token, not the same one.
   const exact = candidates.find((c) => normalize(c.value) === normalize(raw.value))
   if (exact) return { bucket: 'exact', raw, match: exact }
   return { bucket: 'new', raw, note: `no ${raw.kind} token with this value` }
+}
+
+interface Part { label: string; kind: TokenKind; value: string }
+
+/**
+ * Borders and typography are not values, they are compositions.
+ *
+ * `1px solid #9aa3ad` is a width, a style and a colour; a design system holds
+ * those separately and Tailwind writes them as `border border-neutral-500`.
+ * Comparing the whole string finds nothing, so gridwright asked to create a
+ * token for a border whose every part the project already had — which is the
+ * rot Law 4 exists to prevent, produced by the tool meant to prevent it.
+ *
+ * Found on a real run: three of four proposed tokens were compositions of
+ * things already in the config.
+ */
+function resolveComposite(
+  raw: RawToken,
+  existing: ExistingToken[],
+  opts: ResolveOptions,
+  parts: Part[],
+): Resolution {
+  if (parts.length === 0) {
+    return { bucket: 'new', raw, note: `could not read this ${raw.kind} as parts` }
+  }
+
+  const found: string[] = []
+  const missing: string[] = []
+
+  for (const part of parts) {
+    const candidates = existing.filter((e) => e.kind === part.kind && e.comparable)
+    const asRaw: RawToken = { kind: part.kind === 'color' ? 'color' : 'spacing', value: part.value, usedIn: raw.usedIn }
+    const r = part.kind === 'color'
+      ? resolveColor(asRaw, candidates, opts)
+      : resolveLength(asRaw, candidates, opts)
+
+    if (r.bucket === 'new') missing.push(`${part.label} ${part.value}`)
+    else found.push(`${part.label} → ${r.match!.name}`)
+  }
+
+  if (missing.length === 0) {
+    return {
+      bucket: 'exact', raw,
+      // No single token to point at, because there should not be one.
+      note: `already expressible: ${found.join(', ')}. A composite token would duplicate them.`,
+    }
+  }
+  return {
+    bucket: 'new', raw,
+    note: found.length > 0
+      ? `${found.join(', ')} exist; missing ${missing.join(', ')}`
+      : `none of its parts are in the system`,
+  }
+}
+
+/** `1px solid #9aa3ad` → a width and a colour. The style is not a token. */
+function borderParts(value: string): Part[] {
+  const m = value.trim().match(/^(\S+)\s+\w+\s+(\S+)$/)
+  if (!m) return []
+  return [
+    { label: 'width', kind: 'border', value: m[1]! },
+    { label: 'colour', kind: 'color', value: m[2]! },
+  ]
+}
+
+/**
+ * `Roboto/700/32px/40px` → family, weight, size, line height.
+ *
+ * Only the size is matched. A project's fontSize token carries its own line
+ * height, family lives in fontFamily and weight is a utility — treating the
+ * four as one value is what made every heading look like a new token.
+ */
+function typographyParts(value: string): Part[] {
+  const bits = value.split('/')
+  if (bits.length < 3) return []
+  return [{ label: 'size', kind: 'typography', value: bits[2]! }]
 }
 
 function resolveColor(raw: RawToken, candidates: ExistingToken[], opts: ResolveOptions): Resolution {

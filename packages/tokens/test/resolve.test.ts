@@ -56,10 +56,38 @@ describe('the three buckets — Law 4', () => {
     expect(resolve1(raw('radius', '16px')).bucket).toBe('exact')
   })
 
-  // Two pixels of line-height is a different type token, not the same one
-  // drawn imprecisely — "near" has no meaning for a tuple.
-  it('typography compares as written, with no near bucket', () => {
-    expect(resolve1(raw('typography', 'Inter/700/48px/56px')).bucket).toBe('new')
+  /**
+   * Borders and typography are compositions, not values.
+   *
+   * Found on a real run: three of four proposed tokens were made of parts the
+   * project already had. `1px solid #9aa3ad` is `border border-neutral-500` in
+   * Tailwind; comparing the whole string finds nothing and asks to create a
+   * token that would duplicate two existing ones.
+   */
+  it('typography resolves by size, since family and weight are their own tokens', () => {
+    // The fixture declares fontSize.display = 48px.
+    const r = resolve1(raw('typography', 'Inter/700/48px/56px'))
+    expect(r.bucket).toBe('exact')
+    expect(r.note).toMatch(/would duplicate/)
+  })
+
+  it('a genuinely new size is still new', () => {
+    expect(resolve1(raw('typography', 'Inter/400/13px/18px')).bucket).toBe('new')
+  })
+
+  it('a border whose parts all exist needs no token of its own', () => {
+    // colors.primary.500 is #008599 in the fixture; 1px is Tailwind's default.
+    const withFw = withDefaults(system.tokens, 'tailwind-config')
+    const r = resolveTokens([raw('border', '1px solid #008599')], withFw, OPTS)[0]!
+    expect(r.bucket).toBe('exact')
+    expect(r.note).toMatch(/already expressible/)
+  })
+
+  it('a border with an unknown colour says which part is missing', () => {
+    const withFw = withDefaults(system.tokens, 'tailwind-config')
+    const r = resolveTokens([raw('border', '1px solid #ff5a3c')], withFw, OPTS)[0]!
+    expect(r.bucket).toBe('new')
+    expect(r.note).toMatch(/missing colour/)
   })
 
   it('never matches against a value it could not evaluate', () => {

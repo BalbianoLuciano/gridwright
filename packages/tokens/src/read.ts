@@ -89,6 +89,8 @@ export function readTailwindConfig(absPath: string, label: string): TokenSystem 
   const theme = findTheme(source)
   if (!theme) return { target: 'tailwind-config', file: label, tokens: [], sections: [] }
 
+  const literals = collectLiteralMaps(source)
+
   for (const root of theme) {
     for (const prop of root.getProperties()) {
       if (!prop.isKind(SyntaxKind.PropertyAssignment)) continue
@@ -98,10 +100,40 @@ export function readTailwindConfig(absPath: string, label: string): TokenSystem 
       const init = prop.getInitializer()
       if (!init) continue
       sections.add(section)
-      collect(init, section, SECTION_KINDS[section] ?? 'other', tokens, label)
+      collect(init, section, SECTION_KINDS[section] ?? 'other', tokens, label, literals)
     }
   }
   return { target: 'tailwind-config', file: label, tokens, sections: [...sections] }
+}
+
+/**
+ * Module-level maps of plain string values, keyed by their own key.
+ *
+ * Configs of any size stop writing values inline. santillanafrancais keeps a
+ * `HEX` map and emits every colour as `color('neutral-700')`, so a reader that
+ * stops at the function call sees a config with no comparable colours at all —
+ * and then proposes `#4b5561` as new when `neutral-700` has been exactly that
+ * since the palette was dumped from Figma.
+ *
+ * Following one level of indirection is the difference between resolving
+ * against a project's palette and inventing a second one beside it.
+ */
+function collectLiteralMaps(source: ReturnType<Project['addSourceFileAtPath']>): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const decl of source.getVariableDeclarations()) {
+    const init = decl.getInitializer()
+    if (!init?.isKind(SyntaxKind.ObjectLiteralExpression)) continue
+    for (const prop of init.getProperties()) {
+      if (!prop.isKind(SyntaxKind.PropertyAssignment)) continue
+      const value = prop.getInitializer()
+      if (!value?.isKind(SyntaxKind.StringLiteral)) continue
+      const key = unquote(prop.getName())
+      // First declaration wins: a later map keyed the same way is a different
+      // scale, and guessing between them is worse than using neither.
+      if (!out.has(key)) out.set(key, value.getLiteralValue())
+    }
+  }
+  return out
 }
 
 function findTheme(source: ReturnType<Project['addSourceFileAtPath']>): ObjectLiteralExpression[] {
@@ -130,14 +162,29 @@ function collect(
   kind: TokenKind,
   out: ExistingToken[],
   source: string,
+  literals: Map<string, string> = new Map(),
 ): void {
   if (node.isKind?.(SyntaxKind.ObjectLiteralExpression)) {
     for (const prop of (node as ObjectLiteralExpression).getProperties()) {
       if (!prop.isKind(SyntaxKind.PropertyAssignment)) continue
       const init = prop.getInitializer()
-      if (init) collect(init, `${path}.${unquote(prop.getName())}`, kind, out, source)
+      if (init) collect(init, `${path}.${unquote(prop.getName())}`, kind, out, source, literals)
     }
     return
+  }
+
+  // `color('neutral-700')` — a helper over a map of values. One level of
+  // indirection, and only when the argument is a literal we can look up.
+  if (node.isKind?.(SyntaxKind.CallExpression)) {
+    const args = node.getArguments?.() ?? []
+    const first = args[0]
+    if (args.length === 1 && first?.isKind?.(SyntaxKind.StringLiteral)) {
+      const resolved = literals.get(first.getLiteralValue())
+      if (resolved) {
+        out.push({ name: path, kind, value: resolved, comparable: isComparable(resolved), source })
+        return
+      }
+    }
   }
 
   if (node.isKind?.(SyntaxKind.StringLiteral) || node.isKind?.(SyntaxKind.NoSubstitutionTemplateLiteral)) {
@@ -149,7 +196,7 @@ function collect(
   if (node.isKind?.(SyntaxKind.ArrayLiteralExpression)) {
     // fontSize entries are ['1rem', { lineHeight: '1.5rem' }] — the size is what matters.
     const first = node.getElements?.()[0]
-    if (first) collect(first, path, kind, out, source)
+    if (first) collect(first, path, kind, out, source, literals)
     return
   }
 
