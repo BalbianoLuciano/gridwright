@@ -130,35 +130,55 @@ async function collectBoxes(page: Page, minSize: number): Promise<MeasuredNode[]
 }
 
 /**
- * Reads the colour at each design probe.
+ * Reads the colour each design probe asks about.
  *
- * Probes are normalized to the root box, so a frame designed at 1920 samples
- * the same relative point when rendered at 375. The colour comes from the
- * element under that point rather than from the screenshot: a pixel read is at
- * the mercy of antialiasing at any edge, and this is meant to be the dimension
- * without noise.
+ * Two things it deliberately does not do.
+ *
+ * It does not read pixels. A pixel read is at the mercy of antialiasing on any
+ * edge, and this is meant to be the dimension without noise — the value comes
+ * off the element's computed style instead.
+ *
+ * And it does not always read `backgroundColor`. On a text node the design's
+ * fill is the colour of the glyphs, and the centre of a text box lands between
+ * them: sampling there returns the background and reports every correct
+ * heading as a chromatic failure. Five of five failures on a real run were
+ * exactly that, on a component whose colours were right throughout.
  */
 async function sampleColors(page: Page, root: Box, probes: ColorProbe[]): Promise<string[]> {
   if (probes.length === 0) return []
   return page.evaluate(
     ({ root, probes }) => {
-      const toHex = (rgb: string): string => {
-        const m = rgb.match(/rgba?\(([^)]+)\)/)
-        if (!m) return '#000000'
+      const toHex = (value: string): string => {
+        const m = value.match(/rgba?\(([^)]+)\)/)
+        if (!m) return 'transparent'
         const [r, g, b, a] = m[1]!.split(',').map((v) => parseFloat(v.trim()))
         if (a !== undefined && a < 0.05) return 'transparent'
         return '#' + [r, g, b].map((v) => Math.round(v!).toString(16).padStart(2, '0')).join('')
       }
 
+      const labelled = (path: string): Element | null =>
+        document.querySelector(`[data-gw="${CSS.escape(path.split(' / ').pop() ?? '')}"]`)
+
       return probes.map((p) => {
+        // Identity first when the component labelled its nodes, geometry
+        // otherwise. Geometry is enough for a background; for text it only has
+        // to land inside the right element, not on a glyph.
         const x = root.x + p.u * root.width
         const y = root.y + p.v * root.height
-        let el = document.elementFromPoint(x, y)
-        // Walk up through transparent backgrounds to whatever is actually
-        // painting that pixel.
+        let el = (p.path ? labelled(p.path) : null) ?? document.elementFromPoint(x, y)
+
+        if (p.property === 'color') {
+          // The glyphs are painted by whatever element owns the text, which may
+          // be a child of the box the design measured.
+          const withText = el?.querySelector('*') && !el.textContent?.trim()
+            ? el.querySelector('*')
+            : el
+          return withText ? toHex(getComputedStyle(withText).color) : 'transparent'
+        }
+
+        // Walk up through transparent backgrounds to whatever actually paints.
         while (el) {
-          const bg = getComputedStyle(el).backgroundColor
-          const hex = toHex(bg)
+          const hex = toHex(getComputedStyle(el).backgroundColor)
           if (hex !== 'transparent') return hex
           el = el.parentElement
         }

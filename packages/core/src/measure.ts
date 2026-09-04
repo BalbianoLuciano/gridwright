@@ -36,6 +36,22 @@ export interface ColorProbe {
   v: number
   hex: string
   from: string
+  /**
+   * Which CSS property carries this colour in the render.
+   *
+   * A pixel at the centre of a text box lands *between* the glyphs, so
+   * sampling there reads the background and reports every correct heading as a
+   * chromatic failure. On a text node the fill is the colour of the letters,
+   * which is `color`, and it has to be read from the element rather than from
+   * the image.
+   *
+   * The IR calls the field `bg` regardless, which is wrong for the majority of
+   * the nodes that carry one.
+   */
+  property: 'background' | 'color'
+  /** Layer path, so the probe can find its element by identity when the
+   *  component labels its nodes. */
+  path?: string
 }
 
 export interface Measurements {

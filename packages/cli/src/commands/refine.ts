@@ -11,7 +11,7 @@
  */
 
 import {
-  activeRun, loadState, loadConfig, saveState,
+  activeRun, loadState, loadConfig, saveState, inconsistency,
   type RunScore, type RunState, type Dimension, type DimensionScore,
 } from '@gridwright/core'
 import { ok, fail, info, warn, dim, bold, green, yellow, red } from '../ui.js'
@@ -49,6 +49,32 @@ export function refine(root: string, args: RefineArgs): void {
     console.log(dim('  usually not the component: a design that cannot be reached with the'))
     console.log(dim('  tokens the project has, or a frame measured against the wrong breakpoint.'))
     console.log(dim(`\n  The screenshots are in .gridwright/verify — worst viewport is ${score.worstViewport}.`))
+    process.exitCode = 1
+    return
+  }
+
+  // Before handing out any work: do the dimensions agree that there is work?
+  //
+  // refine attributed every gap to the component, always. A run measured
+  // perceptual 95.67% and structural 48.93% on the same render — the pixels
+  // saying it matches and the boxes saying it does not — and nothing consumed
+  // the contradiction. An obedient agent sent to close that gap reshapes the
+  // DOM until the number moves, which here meant reproducing five nested Figma
+  // instance wrappers around an svg. Better score, worse component, no
+  // objection from anywhere.
+  const worst = score.viewports.find((v) => v.viewport === score.worstViewport) ?? score.viewports[0]
+  const contradiction = worst ? inconsistency(worst) : null
+  if (contradiction && !args.focus) {
+    console.log(`${yellow('!')} The measurements disagree with each other.`)
+    console.log()
+    console.log(dim(`  ${contradiction}`))
+    console.log()
+    console.log('Not spending an iteration on this. What to check instead:')
+    console.log(dim('  · does the component label its nodes with data-gw?'))
+    console.log(dim('  · is the design frame a different width than the viewport being graded?'))
+    console.log(dim(`  · look at .gridwright/verify/${worst!.viewport}.png before changing anything`))
+    console.log()
+    console.log(dim('  Override with --focus=structural if you are sure the layout is wrong.'))
     process.exitCode = 1
     return
   }
@@ -106,7 +132,8 @@ function printFocus(run: RunState, score: RunScore, focus: Focus, iteration: num
   const d = focus.dimension
   console.log(`${bold(run.id)} ${dim(`· iteration ${iteration} of ${cap}`)}`)
   console.log()
-  console.log(`${yellow(d.dimension)} ${d.score}% — failing on ${focus.viewport} (${focus.width}px)`)
+  const coverage = d.coverage !== undefined ? dim(`  (${Math.round(d.coverage * 100)}% of the design matched)`) : ''
+  console.log(`${yellow(d.dimension)} ${d.score}% — failing on ${focus.viewport} (${focus.width}px)${coverage}`)
 
   if (d.findings.length === 0) {
     console.log(dim('  No individual findings: the difference is spread across the whole render'))

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  deltaE, scoreChromatic, scoreStructural, scorePerceptual, combine, combineViewports,
+  deltaE, scoreChromatic, scoreStructural, scorePerceptual, combine, combineViewports, inconsistency,
   type MeasuredNode, type Box, type ViewportScore,
 } from '../src/index.js'
 
@@ -241,5 +241,70 @@ describe('calibration — what the threshold actually lets past', () => {
       { dimension: 'perceptual' as const, score: 0, findings: [], unavailable: 'no reference' },
     ]
     expect(combine(dims, W)).toBeCloseTo(90, 0)
+  })
+})
+
+/**
+ * Nothing could falsify the ruler.
+ *
+ * A real run measured perceptual 95.67% and structural 48.93% on one render:
+ * the pixels saying the component matches the design, the boxes saying it does
+ * not. `refine` attributed the whole gap to the component, as it always does,
+ * and an obedient agent closing it would have reproduced five nested Figma
+ * instance wrappers around an `<svg>` — better score, worse component, no
+ * objection from anywhere.
+ */
+describe('the dimensions can now contradict each other out loud', () => {
+  const viewport = (structural: number, perceptual: number): ViewportScore => ({
+    viewport: 'desktop', width: 1440, total: 0,
+    dimensions: [
+      { dimension: 'structural', score: structural, findings: [] },
+      { dimension: 'perceptual', score: perceptual, findings: [] },
+    ],
+  })
+
+  it('flags high perceptual against low structural', () => {
+    expect(inconsistency(viewport(48.93, 95.67))).toMatch(/matching between design and render/)
+  })
+
+  it('says nothing when they agree that it is wrong', () => {
+    expect(inconsistency(viewport(48, 52))).toBeNull()
+  })
+
+  it('says nothing when they agree that it is right', () => {
+    expect(inconsistency(viewport(96, 95))).toBeNull()
+  })
+
+  // An unmeasured dimension is not evidence of anything.
+  it('needs both dimensions measured before calling a contradiction', () => {
+    const v = viewport(48, 95)
+    v.dimensions[1]!.unavailable = 'no reference image'
+    expect(inconsistency(v)).toBeNull()
+  })
+})
+
+/**
+ * Coverage is a precondition, not a quality. A number computed over a broken
+ * pairing is worse than none, because it looks actionable — the agent cannot
+ * tell "this scored low" from "this was not measurable".
+ */
+describe('coverage decides whether the score means anything', () => {
+  const design = Array.from({ length: 10 }, (_, i) =>
+    node(`Root / Node${i}`, 1, { x: i * 10, y: 0, width: 10, height: 10 }))
+
+  it('reports instead of scoring when most nodes find no counterpart', () => {
+    const s = scoreStructural(design, ROOT, design.slice(0, 3), ROOT, 2)
+    expect(s.unavailable).toMatch(/could be matched/)
+    expect(s.coverage).toBeLessThan(0.65)
+  })
+
+  it('scores normally when nearly everything matched', () => {
+    const s = scoreStructural(design, ROOT, design.slice(0, 9), ROOT, 2)
+    expect(s.unavailable).toBeUndefined()
+    expect(s.coverage).toBeGreaterThan(0.65)
+  })
+
+  it('a full match reports full coverage', () => {
+    expect(scoreStructural(design, ROOT, design, ROOT, 2).coverage).toBe(1)
   })
 })

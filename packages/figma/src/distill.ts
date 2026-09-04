@@ -239,11 +239,17 @@ function walk(node: FigmaNode, ctx: Ctx, parentPath: string, depth: number): IRN
     // root so it survives being rendered at another scale.
     const solid = (node.fills ?? []).find((f) => f.type === 'SOLID' && f.visible !== false)
     if (solid?.color && ctx.root.width > 0 && ctx.root.height > 0) {
+      // On a text node the fill is the colour of the glyphs, not of the box —
+      // so it is `color`, and it cannot be read by sampling a pixel that lands
+      // in the gap between two letters.
+      const isText = role === 'heading' || role === 'text'
       ctx.probes.push({
         u: (box.x + box.width / 2 - ctx.root.x) / ctx.root.width,
         v: (box.y + box.height / 2 - ctx.root.y) / ctx.root.height,
         hex: toHex(solid),
         from: path,
+        property: isText ? 'color' : 'background',
+        path,
       })
     }
   }

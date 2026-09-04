@@ -16,6 +16,11 @@ import { iou, normalize, edgeDeltas } from './measure.js'
 
 export type Dimension = 'structural' | 'chromatic' | 'perceptual'
 
+/** Below this share of matched nodes, the structural dimension reports rather
+ *  than scores. Two thirds is generous: it still tolerates a component that
+ *  legitimately collapses a third of the design's wrappers. */
+export const MIN_COVERAGE = 0.65
+
 export interface NodeFinding {
   path: string
   /** What moved and by how much, in render pixels. Actionable; a number is not. */
@@ -28,6 +33,15 @@ export interface DimensionScore {
   dimension: Dimension
   score: number
   findings: NodeFinding[]
+  /**
+   * How much of the design this score actually covers, 0 to 1.
+   *
+   * A precondition, not a quality: a number computed over a broken pairing is
+   * worse than no number, because it looks actionable. The agent writes, gets a
+   * figure back, and has no way to tell "this scored low" from "this was not
+   * measurable".
+   */
+  coverage?: number
   /** Present when the dimension could not be measured at all. A missing
    *  dimension is reported, never scored as zero — a zero would say "wrong"
    *  when the truth is "unknown". */
@@ -115,6 +129,9 @@ export function scoreStructural(
   const findings: NodeFinding[] = []
   let sum = 0
   let counted = 0
+  // How many design nodes found a counterpart at all — the coverage behind the
+  // score, and the thing that decides whether the score means anything.
+  let matched = 0
 
   // Figma lets siblings share a name, and this design has two `Content` nodes
   // under the same parent, so a path alone is not a key. Nodes are keyed by
@@ -179,6 +196,7 @@ export function scoreStructural(
         findings.push({ path: d.path, edge: 'missing', delta: 0, overlap: 0 })
         continue
       }
+      matched++
       const dn = normalize(d, designRoot)
       const rn = normalize(r, renderedRoot)
       const overlap = iou(dn, rn)
@@ -203,7 +221,29 @@ export function scoreStructural(
   // the design did not need is a code-style question, not a fidelity one.
   const score = counted === 0 ? 0 : (sum / counted) * 100
   findings.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.overlap - b.overlap)
-  return { dimension: 'structural', score: round(score), findings: findings.slice(0, 16) }
+
+  const coverage = counted === 0 ? 0 : matched / counted
+  if (coverage < MIN_COVERAGE) {
+    return {
+      dimension: 'structural',
+      score: round(score),
+      findings: findings.slice(0, 16),
+      coverage: round(coverage),
+      // Reported instead of scored. Below this the pairing itself is in doubt,
+      // and every delta after the first mismatch is a phantom: fixing them
+      // means reshaping the DOM to chase a correspondence that was never real.
+      unavailable:
+        `only ${matched} of ${counted} design nodes could be matched to the render. ` +
+        `Label the component's nodes with data-gw before reading this as a score.`,
+    }
+  }
+
+  return {
+    dimension: 'structural',
+    score: round(score),
+    findings: findings.slice(0, 16),
+    coverage: round(coverage),
+  }
 }
 
 // --- chromatic ---------------------------------------------------------------
@@ -309,6 +349,38 @@ export function combine(dims: DimensionScore[], weights: Weights): number {
   const total = usable.reduce((acc, d) => acc + weights[d.dimension], 0)
   if (total <= 0) return 0
   return round(usable.reduce((acc, d) => acc + d.score * weights[d.dimension], 0) / total)
+}
+
+/**
+ * Whether the dimensions contradict each other badly enough to distrust them.
+ *
+ * Nothing in the pipeline could falsify its own ruler. `refine` attributes 100%
+ * of every gap to the component, always, and spends its iteration cap editing
+ * code that may be correct.
+ *
+ * A real run had perceptual at 95.67% and structural at 48.93% on the same
+ * render. Two rulers measuring one object, 47 points apart. The pixels say the
+ * component looks like the design; the boxes say it does not — which means the
+ * correspondence between design nodes and rendered ones is broken, not the
+ * layout. Sending an agent to fix that leads it to reproduce five nested
+ * instance wrappers around an `<svg>`: the score would rise and the component
+ * would get worse.
+ */
+export function inconsistency(viewport: ViewportScore): string | null {
+  const by = (d: Dimension) => viewport.dimensions.find((x) => x.dimension === d)
+  const structural = by('structural')
+  const perceptual = by('perceptual')
+  if (!structural || !perceptual || structural.unavailable || perceptual.unavailable) return null
+
+  if (perceptual.score >= 90 && structural.score < 60) {
+    return (
+      `perceptual ${perceptual.score}% against structural ${structural.score}% on the same render. ` +
+      `The pixels say this matches the design and the boxes say it does not, which points at the ` +
+      `matching between design and render rather than at the layout. ` +
+      `Reshaping the DOM to close that gap would make the component worse and the score better.`
+    )
+  }
+  return null
 }
 
 /** The worst viewport, never the average (Law 6). */
