@@ -61,8 +61,9 @@ const HELP = `${bold('gw')} — gridwright
     gw skip <stage> --reason   skip it, on the record
     gw fail <stage> --reason   mark it failed; the run stays put
 
-  ${dim('Phase 1 of specs/001-pipeline.md: fetch and distill.')}
-  ${dim('Stages from phases 2-5 are reported as not implemented.')}
+  ${dim('Phases 1-4 of specs/001-pipeline.md are built: a run goes from a Figma')}
+  ${dim('node to a registered component. Only `survey` — and view mode with it —')}
+  ${dim('is missing, and it is reported as not implemented rather than skipped.')}
 `
 
 interface Args {
