@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { newRunState, advance, directive, type RunState } from '../src/state.js'
-import { STAGES, STAGE_SPECS, isImplemented } from '../src/stages.js'
+import { STAGES, STAGE_SPECS, isImplemented, firstBlockingStage } from '../src/stages.js'
 
 const make = (): RunState => newRunState({
   id: 'hero-about-us-01', mode: 'component',
@@ -87,9 +87,31 @@ describe('protocol — what Claude gets back from `gw next`', () => {
     expect(d.blocked?.phase).toBe(4)
   })
 
-  it('fetch and distill are built in phase 1', () => {
-    expect(isImplemented('fetch')).toBe(true)
-    expect(isImplemented('distill')).toBe(true)
-    expect(isImplemented('author')).toBe(false)
+  it('knows which stages are built and which are not', () => {
+    for (const s of ['fetch', 'distill', 'verify', 'author', 'refine'] as const) {
+      expect(isImplemented(s)).toBe(true)
+    }
+    for (const s of ['resolve', 'tokens', 'library:ensure', 'survey'] as const) {
+      expect(isImplemented(s)).toBe(false)
+    }
+  })
+
+  /**
+   * Built is not the same as reachable, and the difference is the whole reason
+   * `gw verify` and `gw refine` also work standalone.
+   *
+   * `author` and `verify` are done, but a run cannot get to either: `resolve`
+   * comes first and belongs to phase 4, and the two stages behind it are
+   * mandatory so they cannot be skipped past. Phase 4 is what opens the
+   * pipeline end to end.
+   */
+  it('a run still stops at resolve, three stages before author', () => {
+    expect(firstBlockingStage()).toBe('resolve')
+
+    const s = make()
+    advance(s, 'fetch', { status: 'done' })
+    advance(s, 'distill', { status: 'done' })
+    expect(directive(s, '/repo').blocked).toBeTruthy()
+    expect(STAGES.indexOf('resolve')).toBeLessThan(STAGES.indexOf('author'))
   })
 })

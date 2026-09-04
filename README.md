@@ -5,8 +5,8 @@ component registered in the project's design system comes out. Driven from
 Claude Code.
 
 [![license: MIT](https://img.shields.io/badge/license-MIT-16a34a)](LICENSE)
-![status: phase 1 of 5](https://img.shields.io/badge/status-phase%201%20of%205-2563eb)
-![tests: 69](https://img.shields.io/badge/tests-69%20passing-16a34a)
+![status: phase 3 of 5](https://img.shields.io/badge/status-phase%203%20of%205-2563eb)
+![tests: 98](https://img.shields.io/badge/tests-98%20passing-16a34a)
 
 > **The design comes in as a node and leaves as a system.**
 >
@@ -15,9 +15,11 @@ Claude Code.
 > registered components and more verified surface. If a component turns out fine
 > but contributed nothing to the system, the run failed.
 
-**Status: phase 1 of 5.** `fetch` and `distill` work. The remaining stages exist
-in the state machine and are reported explicitly as not built, rather than
-pretending they ran. See the [roadmap](#roadmap).
+**Status: phases 1–3 built.** The pipeline fetches, distills, renders and scores,
+and the control loop closes. What is missing is phase 4 — and it is missing in a
+way that matters: `tokens` and `library:ensure` are mandatory stages sitting at
+positions 4 and 5, so a run still stops there before it can reach `author` or
+`verify`. Both work standalone in the meantime. See the [roadmap](#roadmap).
 
 ---
 
@@ -239,9 +241,9 @@ iterations instead of burning tokens up to the cap.
 |---|---|---|
 | 0 | The spec | ✅ [`specs/001-pipeline.md`](specs/001-pipeline.md) |
 | 1 | CLI, state machine, `fetch`, `distill` | ✅ |
-| 2 | `verify` with Playwright, on a hand-written component | ⬜ |
-| 3 | Claude Code plugin, `author`, `refine` | 🔨 plugin shell done |
-| 4 | `tokens`, `library`, `golden`, dashboard | ⬜ |
+| 2 | `verify` with Playwright, on a hand-written component | ✅ |
+| 3 | Claude Code plugin, `author`, `refine` | ✅ |
+| 4 | `tokens`, `library`, `golden`, dashboard | ⬜ **unblocks the pipeline** |
 | 5 | View mode: `survey` and composition | ⬜ |
 
 **Phase 2 comes before phase 3 on purpose.** If you cannot measure, you cannot
@@ -254,7 +256,7 @@ generator with extra steps. The ruler first, then the factory.
 
 ```bash
 pnpm install
-pnpm test        # 69 tests
+pnpm test        # 98 tests
 pnpm typecheck
 pnpm build
 ```

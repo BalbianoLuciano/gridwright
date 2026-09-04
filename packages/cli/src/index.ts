@@ -11,6 +11,8 @@ import { authLogin, authStatus, authLogout } from './commands/auth.js'
 import { init } from './commands/init.js'
 import { build, printNext, status, showIr } from './commands/run.js'
 import { runVerify } from './commands/verify.js'
+import { done, skip, markFailed } from './commands/advance.js'
+import { refine } from './commands/refine.js'
 import { bold, dim, fail, green } from './ui.js'
 import { FigmaError } from '@gridwright/figma'
 
@@ -37,6 +39,14 @@ const HELP = `${bold('gw')} — gridwright
       --run <id>               use a design already fetched instead of --figma
       --props <json|path>      props for the render
       --json                   machine-readable score
+    gw refine [--focus <dim>]  what to fix next, one dimension at a time
+
+  ${bold('Closing a stage')}
+    gw done [<stage>]          mark it finished and move on
+      --approve                required on a human gate
+      --output <json|path>     hand data to the next stage
+    gw skip <stage> --reason   skip it, on the record
+    gw fail <stage> --reason   mark it failed; the run stays put
 
   ${dim('Phase 1 of specs/001-pipeline.md: fetch and distill.')}
   ${dim('Stages from phases 2-5 are reported as not implemented.')}
@@ -70,6 +80,17 @@ function parse(argv: string[]): Args {
     else flags.add(name)
   }
   return { cmd: positional[0] ?? '', sub: positional[1], positional: positional.slice(1), flags, values }
+}
+
+function transitionArgs(args: Args) {
+  return {
+    stage: args.positional[0],
+    run: args.values.get('run'),
+    reason: args.values.get('reason'),
+    output: args.values.get('output'),
+    approve: args.flags.has('approve'),
+    json: args.flags.has('json'),
+  }
 }
 
 async function main(): Promise<void> {
@@ -110,6 +131,22 @@ async function main(): Promise<void> {
         run: args.values.get('run'),
         reference: args.values.get('reference'),
         props: args.values.get('props'),
+        json: args.flags.has('json'),
+      })
+
+    case 'done':
+      return done(root, transitionArgs(args))
+
+    case 'skip':
+      return skip(root, transitionArgs(args))
+
+    case 'fail':
+      return markFailed(root, transitionArgs(args))
+
+    case 'refine':
+      return refine(root, {
+        run: args.values.get('run'),
+        focus: args.values.get('focus'),
         json: args.flags.has('json'),
       })
 

@@ -13,7 +13,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, resolve as resolvePath } from 'node:path'
 import {
-  loadConfig, paths, resolveCredentials, activeRun, loadState,
+  loadConfig, paths, resolveCredentials, activeRun, loadState, saveState,
   type Measurements, type GridwrightConfig,
 } from '@gridwright/core'
 import { FigmaClient, FigmaError, parseFigmaUrl, distill } from '@gridwright/figma'
@@ -90,6 +90,15 @@ export async function runVerify(root: string, args: VerifyArgs): Promise<void> {
   console.log()
   console.log(explain(result))
   console.log()
+
+  // Recorded on the run when verify is the stage the run is on, so `refine` has
+  // something to read. A loose calibration run leaves the state untouched.
+  const open = args.run ? loadState(root, args.run) : activeRun(root)
+  if (open && open.stage === 'verify') {
+    const { artifacts, ...score } = result
+    open.stages.verify.output = { ...open.stages.verify.output, score }
+    saveState(root, open)
+  }
 
   const label = `${result.total}% on ${result.worstViewport}, threshold ${result.threshold}`
   if (result.passed) ok(`Passed — ${label}`)

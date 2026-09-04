@@ -38,8 +38,11 @@ machine credential, so logging in again would not fix it.
 ## The loop
 
 ```
-gw next --json   →   do exactly that stage   →   gw next --json   →   …
+gw next --json   →   do exactly that stage   →   gw done   →   gw next --json   →   …
 ```
+
+`gw done` is not optional. Without it the run never moves, and the next
+`gw next` hands back the stage you just finished.
 
 Call `gw next --json` before every step. It returns:
 
@@ -55,6 +58,38 @@ Call `gw next --json` before every step. It returns:
 - **`actor: "human"`** — stop. Show what is on the table and wait for a decision.
 - **`gate` not null** — a human approves before anything is written. Stop and ask.
 - **`blocked`** — that stage is not built yet. Say so plainly and stop.
+
+## Closing a stage
+
+```bash
+gw done                      # finished; move on
+gw done --output '{"files":["..."]}'   # hand data to the next stage
+gw done --approve            # ONLY after a person approved a gate
+gw skip <stage> --reason "…" # skipped, on the record
+gw fail <stage> --reason "…" # failed; the run stays put so it can be retried
+```
+
+**Never pass `--approve` on your own.** It is the flag that says a person looked
+at this and said yes. On a gate, show them what is on the table — the plan, the
+tokens about to be written, the score — and wait. Approving your own work
+defeats the only part of the pipeline that is not automatic.
+
+## Fixing a failing score
+
+```bash
+gw verify                  # render and score
+gw refine                  # what to fix, one dimension at a time
+gw refine --focus=structural
+```
+
+`refine` hands back the worst dimension on the worst viewport, with each element
+and how far off it is. Fix **only that dimension**, then verify again — changing
+several at once makes it impossible to tell which edit moved the score.
+
+It also counts iterations against the configured cap. When the cap is reached it
+stops, and stopping is the right outcome: past that point the difference is
+usually not the component but a design that cannot be reached with the tokens
+the project has.
 
 ## Starting a run
 
