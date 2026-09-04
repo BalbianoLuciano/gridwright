@@ -176,7 +176,12 @@ export function advance(
 /**
  * The protocol. Claude does not decide which stage comes next: it asks this.
  */
-export function directive(state: RunState, root: string, inputs: Record<string, unknown> = {}): Directive {
+export function directive(
+  state: RunState,
+  root: string,
+  inputs: Record<string, unknown> = {},
+  conventions?: unknown,
+): Directive {
   const stage = state.stage
   const spec = STAGE_SPECS[stage]
   const base: Directive = {
@@ -187,6 +192,14 @@ export function directive(state: RunState, root: string, inputs: Record<string, 
     inputs: { root, name: state.name, mode: state.mode, ...inputs },
     gate: spec.gate ? 'Requires human approval before advancing (Law 5).' : null,
   }
+  // `author` and `plan` need the project's own shape, not just its paths. A
+  // component written in the wrong shape compiles, renders, scores well and
+  // does not work in the product — and nothing downstream checks for that,
+  // because every check gridwright has is about fidelity to the design.
+  if ((stage === 'author' || stage === 'plan') && conventions) {
+    base.inputs.conventions = conventions
+  }
+
   if (!isImplemented(stage)) {
     base.blocked = {
       reason: `Stage "${stage}" belongs to phase ${spec.phase} of the spec and is not built yet.`,

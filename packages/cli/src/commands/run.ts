@@ -242,7 +242,8 @@ export function printNext(root: string, state: RunState | null, opts: { json: bo
     ir: existsSync(paths.ir(root, run.id)) ? paths.ir(root, run.id) : undefined,
     reference: existsSync(paths.reference(root, run.id)) ? paths.reference(root, run.id) : undefined,
     assets: existsSync(paths.runAssets(root, run.id)) ? paths.runAssets(root, run.id) : undefined,
-  })
+    survey: existsSync(paths.survey(root, run.id)) ? paths.survey(root, run.id) : undefined,
+  }, loadConfig(root)?.conventions)
 
   if (opts.json) { console.log(JSON.stringify(d, null, 2)); return }
 

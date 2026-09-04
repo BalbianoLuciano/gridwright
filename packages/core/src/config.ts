@@ -19,9 +19,27 @@ export interface Viewport {
   height: number
 }
 
+/** How this project writes a component, learned from the ones already there.
+ *  Not the same question as where they live: a project can have several shapes
+ *  and writing the wrong one produces a file that renders and does not work. */
+export interface ComponentShape {
+  dir: string
+  file: string
+  export: string
+  alsoExports: string[]
+  seenIn: number
+  example?: string
+}
+
 export interface GridwrightConfig {
   $schema?: string
   framework: Framework
+  conventions?: {
+    shapes: ComponentShape[]
+    /** Docs the project keeps about its own rules. `author` reads these first —
+     *  they carry what no amount of file-shape inference will find. */
+    docs: string[]
+  }
   /** Where the component library lives. Created if missing (the
    *  `library:ensure` stage), with the bare minimum: folder, barrel, registry. */
   library: {

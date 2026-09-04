@@ -170,3 +170,4 @@ export function findByHash(registry: Registry, irHash: string): [string, Registr
   return Object.entries(registry).find(([, e]) => e.figma.irHash === irHash) ?? null
 }
 export * from './survey.js'
+export * from './conventions.js'

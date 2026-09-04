@@ -123,12 +123,38 @@ the design system instead of just producing a file.
 no layout to extract. Report it and stop. Rebuilding it by eye from the
 reference image is the exact failure this pipeline exists to prevent.
 
-**Write the code this repo would write.** Read neighbouring components first —
-naming, file shape, how props are typed, how classes are composed. Idiomatic
-beats clever.
+**Write the code this repo would write.** `inputs.conventions` carries the
+shapes found in the project — where each kind of component lives, how its file
+is laid out, how it exports, and what else every file of that kind exports.
+Follow the one that matches where the component is going, and open its `example`
+before writing.
+
+A shape is not a style preference. A module that exports `default` where the
+project exports a named `Component`, or that omits a `fields` its CMS requires,
+will compile, render in the harness, score well **and not work in the product**.
+Nothing downstream catches that: every check in this pipeline is about fidelity
+to the design.
+
+Read `conventions.docs` too. They hold the rules no amount of looking at file
+shapes will find.
 
 **No margins between siblings.** Use `gap`. The IR cannot express margins, so
 if you are reaching for one you have left the IR behind.
+
+**Label the nodes the IR names, with `data-gw`.** Use the layer's own name:
+`<div data-gw="Wrapper wide">`, `<a data-gw="Button">`. This is how `verify`
+knows which rendered element is which.
+
+Without labels it falls back to pairing by depth and reading order, and that
+breaks on any component worth writing: one inlined `<svg>` or one wrapper div
+shifts every pair at that depth, so the button gets measured against the
+illustration's box and a correct component scores in the twenties. Do not chase
+that score by reshaping the DOM to mirror Figma's tree — a Figma button carries
+six levels of component-instance wrappers, and reproducing them is the failure,
+not the fix. Label the nodes instead.
+
+Label what the design measures: containers, headings, text, buttons, images.
+Skip your own presentational wrappers — extra elements cost nothing.
 
 **Figma copy becomes prop defaults**, not hardcoded markup. The component stays
 presentational: no fetching, no stores, no business logic.

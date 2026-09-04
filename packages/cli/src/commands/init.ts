@@ -14,6 +14,7 @@ import {
   DEFAULT_CONFIG, writeConfig, configPath, loadConfig, validateConfig,
   gitignoreBlock, paths, type GridwrightConfig, type Framework,
 } from '@gridwright/core'
+import { detectConventions } from '@gridwright/library'
 import { ok, info, warn, fail, dim, table, bold } from '../ui.js'
 
 export function init(root: string, opts: { force?: boolean } = {}): void {
@@ -35,6 +36,13 @@ export function init(root: string, opts: { force?: boolean } = {}): void {
   const lib = detectLibraryDir(root)
   if (lib) {
     config.library = { dir: lib, barrel: join(lib, 'index.ts'), registry: join(lib, 'registry.json') }
+  }
+
+  // Where a component goes is half the question; how it is written is the
+  // other half, and the answer is in the components already there.
+  const conventions = detectConventions(root)
+  if (conventions.shapes.length > 0 || conventions.docs.length > 0) {
+    config.conventions = conventions
   }
 
   const errors = validateConfig(config)
@@ -59,6 +67,14 @@ function showConfig(c: GridwrightConfig): void {
     ['viewports', c.verify.viewports.map((v) => `${v.name}:${v.width}`).join(' ')],
     ['threshold', `${c.verify.threshold} (worst viewport)`],
   ])
+
+  for (const s of c.conventions?.shapes ?? []) {
+    const extras = s.alsoExports.length ? ` + ${s.alsoExports.join(', ')}` : ''
+    console.log(dim(`    ${s.dir.padEnd(22)} ${s.file}  ${s.export}${extras}  (${s.seenIn})`))
+  }
+  if (c.conventions?.docs.length) {
+    console.log(dim(`    ${c.conventions.docs.length} convention docs found`))
+  }
 }
 
 function readPackageJson(root: string): Record<string, any> | null {
