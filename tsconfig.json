@@ -1,8 +1,17 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/core" },
-    { "path": "packages/figma" },
-    { "path": "packages/cli" }
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/figma"
+    },
+    {
+      "path": "packages/verify"
+    },
+    {
+      "path": "packages/cli"
+    }
   ]
 }

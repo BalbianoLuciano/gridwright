@@ -12,7 +12,7 @@
  */
 
 import type { Box, MeasuredNode } from './measure.js'
-import { iou, normalize, worstEdge } from './measure.js'
+import { iou, normalize, edgeDeltas } from './measure.js'
 
 export type Dimension = 'structural' | 'chromatic' | 'perceptual'
 
@@ -121,13 +121,12 @@ export function scoreStructural(
       sum += scored
 
       if (scored < 0.98) {
-        const w = worstEdge(
-          { x: dn.x * renderedRoot.width, y: dn.y * renderedRoot.height,
-            width: dn.width * renderedRoot.width, height: dn.height * renderedRoot.height },
-          r,
-        )
-        if (Math.abs(w.delta) > tolerancePx) {
-          findings.push({ path: d.path, edge: w.edge, delta: w.delta, overlap: round(overlap) })
+        const expected = {
+          x: dn.x * renderedRoot.width, y: dn.y * renderedRoot.height,
+          width: dn.width * renderedRoot.width, height: dn.height * renderedRoot.height,
+        }
+        for (const e of edgeDeltas(expected, r, tolerancePx)) {
+          findings.push({ path: d.path, edge: e.edge, delta: e.delta, overlap: round(overlap) })
         }
       }
     }
@@ -137,7 +136,7 @@ export function scoreStructural(
   // the design did not need is a code-style question, not a fidelity one.
   const score = counted === 0 ? 0 : (sum / counted) * 100
   findings.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.overlap - b.overlap)
-  return { dimension: 'structural', score: round(score), findings: findings.slice(0, 12) }
+  return { dimension: 'structural', score: round(score), findings: findings.slice(0, 16) }
 }
 
 // --- chromatic ---------------------------------------------------------------

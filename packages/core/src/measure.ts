@@ -62,18 +62,25 @@ export function iou(a: Box, b: Box): number {
   return union <= 0 ? 0 : inter / union
 }
 
-/** The largest single-edge error, in pixels. Reported alongside the score
- *  because "the heading is 8px low" is actionable and "0.94" is not. */
-export function worstEdge(a: Box, b: Box): { edge: string; delta: number } {
+/**
+ * Every edge that is off by more than the tolerance, worst first.
+ *
+ * Reporting only the worst one costs an extra refine iteration each time an
+ * element has two problems: you fix the width, run again, and only then find
+ * out it was also 8px low. The whole point of naming the deltas is to converge
+ * in one pass.
+ */
+export function edgeDeltas(a: Box, b: Box, tolerancePx = 0): Array<{ edge: string; delta: number }> {
   const edges: Array<[string, number]> = [
     ['left', b.x - a.x],
     ['top', b.y - a.y],
     ['width', b.width - a.width],
     ['height', b.height - a.height],
   ]
-  let worst: [string, number] = ['left', 0]
-  for (const e of edges) if (Math.abs(e[1]) > Math.abs(worst[1])) worst = e
-  return { edge: worst[0], delta: Math.round(worst[1]) }
+  return edges
+    .map(([edge, delta]) => ({ edge, delta: Math.round(delta) }))
+    .filter((e) => Math.abs(e.delta) > tolerancePx)
+    .sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta))
 }
 
 /**

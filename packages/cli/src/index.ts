@@ -10,6 +10,7 @@
 import { authLogin, authStatus, authLogout } from './commands/auth.js'
 import { init } from './commands/init.js'
 import { build, printNext, status, showIr } from './commands/run.js'
+import { runVerify } from './commands/verify.js'
 import { bold, dim, fail, green } from './ui.js'
 import { FigmaError } from '@gridwright/figma'
 
@@ -30,6 +31,13 @@ const HELP = `${bold('gw')} — gridwright
     gw status [--json]         runs and the stage each one is on
     gw ir [<run-id>]           print a run's IR
 
+  ${bold('Verification')}
+    gw verify --component <path> --figma "<url>"
+                               render it and score against the design
+      --run <id>               use a design already fetched instead of --figma
+      --props <json|path>      props for the render
+      --json                   machine-readable score
+
   ${dim('Phase 1 of specs/001-pipeline.md: fetch and distill.')}
   ${dim('Stages from phases 2-5 are reported as not implemented.')}
 `
@@ -39,16 +47,29 @@ interface Args {
   sub?: string
   positional: string[]
   flags: Set<string>
+  /** Flags that carry a value, e.g. `--component path`. */
+  values: Map<string, string>
 }
 
 function parse(argv: string[]): Args {
   const positional: string[] = []
   const flags = new Set<string>()
-  for (const a of argv) {
-    if (a.startsWith('--')) flags.add(a.slice(2))
-    else positional.push(a)
+  const values = new Map<string, string>()
+
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!
+    if (!a.startsWith('--')) { positional.push(a); continue }
+
+    // Both `--component x` and `--component=x`.
+    const eq = a.indexOf('=')
+    if (eq !== -1) { values.set(a.slice(2, eq), a.slice(eq + 1)); continue }
+
+    const name = a.slice(2)
+    const next = argv[i + 1]
+    if (next && !next.startsWith('--')) { values.set(name, next); i++ }
+    else flags.add(name)
   }
-  return { cmd: positional[0] ?? '', sub: positional[1], positional: positional.slice(1), flags }
+  return { cmd: positional[0] ?? '', sub: positional[1], positional: positional.slice(1), flags, values }
 }
 
 async function main(): Promise<void> {
@@ -81,6 +102,16 @@ async function main(): Promise<void> {
       }
       return build(root, url, { mode: args.flags.has('view') ? 'view' : 'component' })
     }
+
+    case 'verify':
+      return runVerify(root, {
+        component: args.values.get('component'),
+        figma: args.values.get('figma'),
+        run: args.values.get('run'),
+        reference: args.values.get('reference'),
+        props: args.values.get('props'),
+        json: args.flags.has('json'),
+      })
 
     case 'next':
       return printNext(root, null, { json: args.flags.has('json') })

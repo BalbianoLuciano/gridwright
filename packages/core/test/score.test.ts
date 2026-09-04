@@ -170,3 +170,41 @@ describe('combining — Law 6', () => {
     expect(combineViewports(vps, 90).passed).toBe(true)
   })
 })
+
+/**
+ * Calibration, from running the engine against a component broken on purpose.
+ *
+ * The card was moved 8px down and narrowed by 20px — visibly wrong — and the
+ * run still came out at 90.03% and passed. Worth pinning: the number is only
+ * as strict as the weights make it, and this is the shape of what slips
+ * through.
+ */
+describe('calibration — what the threshold actually lets past', () => {
+  it('reports every edge that is off, not only the worst one', () => {
+    const design = [node('Card / Inner', 1, { x: 40, y: 40, width: 300, height: 120 })]
+    const broken = [node('Card / Inner', 1, { x: 40, y: 48, width: 280, height: 120 })]
+    const s = scoreStructural(design, ROOT, broken, ROOT, 2)
+
+    // Fixing the width, re-running, and only then learning about the 8px costs
+    // a whole refine iteration.
+    expect(s.findings.map((f) => f.edge).sort()).toEqual(['top', 'width'])
+  })
+
+  it('a visibly displaced element still scores in the eighties', () => {
+    const design = [node('Card / Inner', 1, { x: 40, y: 40, width: 300, height: 120 })]
+    const broken = [node('Card / Inner', 1, { x: 40, y: 48, width: 280, height: 120 })]
+    expect(scoreStructural(design, ROOT, broken, ROOT, 2).score).toBeGreaterThan(80)
+  })
+
+  // Dropping a dimension raises the weight of the ones that remain, so a run
+  // with no reference image is scored more leniently on structure than one
+  // with it. Worth knowing before reading a number as a verdict.
+  it('losing the perceptual dimension makes structural carry two thirds', () => {
+    const dims = [
+      { dimension: 'structural' as const, score: 85, findings: [] },
+      { dimension: 'chromatic' as const, score: 100, findings: [] },
+      { dimension: 'perceptual' as const, score: 0, findings: [], unavailable: 'no reference' },
+    ]
+    expect(combine(dims, W)).toBeCloseTo(90, 0)
+  })
+})

@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@gridwright/core": "workspace:*",
-    "@gridwright/figma": "workspace:*"
+    "@gridwright/figma": "workspace:*",
+    "@gridwright/verify": "workspace:*"
   },
   "license": "MIT"
 }
