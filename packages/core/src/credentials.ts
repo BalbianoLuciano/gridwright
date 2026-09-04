@@ -18,11 +18,14 @@ import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { readFileSync, writeFileSync, mkdirSync, existsSync, chmodSync, rmSync } from 'node:fs'
 
+/** Where a credential came from. It is not just for display: it decides the
+ *  remedy when Figma rejects the token, because the sources have a precedence
+ *  order and the wrong advice sends someone in a circle. */
+export type CredentialOrigin = 'env' | 'project-dotenv' | 'user-config'
+
 export interface Credentials {
   figmaToken: string
-  /** Where it came from. Reported so there are no surprises about which token
-   *  is in use when several sources are possible. */
-  origin: 'env' | 'project-dotenv' | 'user-config'
+  origin: CredentialOrigin
 }
 
 export function configDir(): string {

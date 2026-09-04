@@ -7,10 +7,11 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   loadConfig, paths, newRunState, saveState, loadState, listRuns, activeRun,
   advance, markRunning, directive, resolveCredentials, isImplemented,
-  STAGE_SPECS, type RunState, type GridwrightConfig, type IR,
+  STAGE_SPECS, type RunState, type GridwrightConfig, type IR, type CredentialOrigin,
 } from '@gridwright/core'
 import {
   FigmaClient, FigmaError, parseFigmaUrl, distill, shouldHalt, extractAssets,
@@ -29,10 +30,33 @@ function requireConfig(root: string): GridwrightConfig {
   return config
 }
 
-function requireClient(root: string): FigmaClient {
+function requireClient(root: string): { client: FigmaClient; origin: CredentialOrigin } {
   const creds = resolveCredentials(root)
   if (!creds) missingCredentials()
-  return new FigmaClient({ token: creds.figmaToken })
+  return { client: new FigmaClient({ token: creds.figmaToken }), origin: creds.origin }
+}
+
+/**
+ * Where the rejected token actually came from decides the remedy, and telling
+ * someone to run `gw auth login` when a stale `.env` outranks it sends them in
+ * a circle: the project's .env wins over the machine config (Law 10.b), so the
+ * new token would never be reached.
+ *
+ * Found by pointing gridwright at a real project whose committed token had
+ * expired.
+ */
+export function authRemedy(origin: CredentialOrigin, root: string): string {
+  switch (origin) {
+    case 'project-dotenv':
+      return `The token came from ${join(root, '.env')}, and that file takes precedence over ` +
+        `the one saved on this machine — running \`gw auth login\` alone will NOT fix it. ` +
+        `Update FIGMA_TOKEN in that .env, or remove the line so the machine credential is used.`
+    case 'env':
+      return 'The token came from the FIGMA_TOKEN environment variable, which outranks every ' +
+        'other source. Unset it or update it in the shell that launched this.'
+    case 'user-config':
+      return 'Run `! gw auth login` in your terminal to replace it.'
+  }
 }
 
 /** A readable, stable id: the frame name plus a counter. */
@@ -52,14 +76,19 @@ export async function build(root: string, url: string, opts: { mode?: 'component
   // Credentials are checked BEFORE opening the run: there is no point leaving a
   // half-created run behind only for it to die in `fetch` (Law 10,
   // "precondition").
-  const client = requireClient(root)
+  const { client, origin } = requireClient(root)
 
   step(`Querying Figma — node ${ref.nodeId}`)
   let doc: FigmaNode
   try {
     doc = (await client.node(ref.fileKey, ref.nodeId)).document
   } catch (e) {
-    if (e instanceof FigmaError) fail(e.message, e.hint)
+    if (e instanceof FigmaError) {
+      const hint = e.status === 401 || e.status === 403
+        ? `${e.hint}\n\n${authRemedy(origin, root)}`
+        : e.hint
+      fail(e.message, hint)
+    }
     throw e
   }
 

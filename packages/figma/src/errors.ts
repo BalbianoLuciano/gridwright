@@ -23,10 +23,10 @@ export function describeStatus(status: number, context: { fileKey?: string; node
     case 401:
     case 403:
       return new FigmaError(
-        'Figma rejected the token (403).',
+        `Figma rejected the token (${status}).`,
         status,
-        'This is usually an expired token, or one without the read scope, rather than a mistyped one. ' +
-          'Regenerate it at figma.com/developers/api#access-tokens with `file_content:read` and run `gw auth login` again.',
+        'This is usually an expired or revoked token rather than a mistyped one. ' +
+          'Regenerate it at figma.com/developers/api#access-tokens with `file_content:read` scope.',
       )
     case 404:
       return new FigmaError(
