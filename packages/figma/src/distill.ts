@@ -19,6 +19,7 @@
 import { createHash } from 'node:crypto'
 import type {
   IR, IRLayout, IRNode, IRRole, IRWarning, RawToken, Align, Justify, Axis,
+  Measurements, MeasuredNode, ColorProbe, Box,
 } from '@gridwright/core'
 import type { FigmaAxisAlign, FigmaColor, FigmaEffect, FigmaNode, FigmaPaint } from './types.js'
 
@@ -29,6 +30,10 @@ export interface DistillOptions {
 
 export interface DistillResult {
   ir: IR
+  /** The numbers `verify` scores against. Kept out of the IR on purpose: Law 2
+   *  keeps absolute coordinates away from the model, Law 6 needs them for the
+   *  machine. Same pass, two files, neither compromises for the other. */
+  measurements: Measurements
   /** Raw design values, not yet resolved against the token system. This is what
    *  the `resolve` stage (phase 4) consumes. Until then `ir.tokens` also holds
    *  raw values, not token names. */
@@ -40,7 +45,16 @@ export function distill(
   source: { fileKey: string; nodeId: string },
   opts: DistillOptions,
 ): DistillResult {
-  const ctx: Ctx = { warnings: [], raw: new Map(), opts, absoluteCount: 0 }
+  const rootBox: Box = {
+    x: root.absoluteBoundingBox?.x ?? 0,
+    y: root.absoluteBoundingBox?.y ?? 0,
+    width: root.absoluteBoundingBox?.width ?? 0,
+    height: root.absoluteBoundingBox?.height ?? 0,
+  }
+  const ctx: Ctx = {
+    warnings: [], raw: new Map(), opts, absoluteCount: 0,
+    measured: [], probes: [], textRegions: [], root: rootBox,
+  }
 
   const children = (root.children ?? [])
     .filter(isVisible)
@@ -67,7 +81,15 @@ export function distill(
 
   ir.hash = semanticHash(ir)
 
-  return { ir, rawTokens: [...ctx.raw.values()] }
+  const measurements: Measurements = {
+    source: { file: source.fileKey, node: source.nodeId },
+    root: rootBox,
+    nodes: ctx.measured,
+    probes: ctx.probes,
+    textRegions: ctx.textRegions,
+  }
+
+  return { ir, measurements, rawTokens: [...ctx.raw.values()] }
 }
 
 /** If the design did not use auto-layout there is no layout to extract.
@@ -93,6 +115,10 @@ interface Ctx {
   raw: Map<string, RawToken>
   opts: DistillOptions
   absoluteCount: number
+  measured: MeasuredNode[]
+  probes: ColorProbe[]
+  textRegions: Box[]
+  root: Box
 }
 
 function walk(node: FigmaNode, ctx: Ctx, parentPath: string, depth: number): IRNode | null {
@@ -119,6 +145,31 @@ function walk(node: FigmaNode, ctx: Ctx, parentPath: string, depth: number): IRN
 
   const role = detectRole(node)
   const out: IRNode = { role, name: sanitize(node.name) }
+
+  // Recorded for `verify` even though it never reaches the IR. Nodes with no
+  // box (Figma sometimes omits it) are skipped rather than measured as zero.
+  const box = node.absoluteBoundingBox
+  if (box && box.width > 0 && box.height > 0) {
+    ctx.measured.push({ path, name: out.name, role, depth, x: box.x, y: box.y, width: box.width, height: box.height })
+
+    // Text regions get masked out of the perceptual diff: Figma and Chromium
+    // will never agree on kerning no matter how right the code is.
+    if (role === 'heading' || role === 'text') {
+      ctx.textRegions.push({ x: box.x, y: box.y, width: box.width, height: box.height })
+    }
+
+    // One probe at the centre of anything with a flat fill. Normalized to the
+    // root so it survives being rendered at another scale.
+    const solid = (node.fills ?? []).find((f) => f.type === 'SOLID' && f.visible !== false)
+    if (solid?.color && ctx.root.width > 0 && ctx.root.height > 0) {
+      ctx.probes.push({
+        u: (box.x + box.width / 2 - ctx.root.x) / ctx.root.width,
+        v: (box.y + box.height / 2 - ctx.root.y) / ctx.root.height,
+        hex: toHex(solid),
+        from: path,
+      })
+    }
+  }
 
   const layout = readLayout(node, ctx, path)
   if (layout.kind !== 'none') out.layout = layout

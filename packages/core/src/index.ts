@@ -1,4 +1,6 @@
 export * from './ir.js'
+export * from './measure.js'
+export * from './score.js'
 export * from './stages.js'
 export * from './state.js'
 export * from './config.js'

@@ -219,3 +219,36 @@ describe('distill — what it used to drop in silence', () => {
     expect(distill(changed, SOURCE, OPTS).ir.hash).not.toBe(before)
   })
 })
+
+/**
+ * Measurements exist so `verify` has numbers to score against, and live outside
+ * the IR so the model never sees an absolute coordinate (Law 2 and Law 6 want
+ * opposite things from the same distill pass).
+ */
+describe('distill — the measurements verify needs', () => {
+  const { ir, measurements } = distill(fixture('gradient-and-shadow'), SOURCE, OPTS)
+
+  it('records the frame box and every node under it', () => {
+    expect(measurements.root).toMatchObject({ width: 1920, height: 344 })
+    expect(measurements.nodes.length).toBeGreaterThan(0)
+  })
+
+  // This is the separation the whole split exists for.
+  it('keeps absolute coordinates out of the IR', () => {
+    expect(JSON.stringify(ir)).not.toContain('absoluteBoundingBox')
+    const card = measurements.nodes.find((n) => n.name === 'Card destacada')
+    expect(card).toMatchObject({ x: 64, y: 64, width: 432, height: 216, depth: 1 })
+  })
+
+  it('marks text regions so the perceptual diff can mask them', () => {
+    expect(measurements.textRegions.length).toBeGreaterThan(0)
+  })
+
+  // Normalized, so a frame designed at 1920 still probes correctly at 375.
+  it('places colour probes in normalized coordinates', () => {
+    const probe = measurements.probes.find((p) => p.from.includes('Card destacada'))
+    expect(probe?.hex).toBe('#ffffff')
+    expect(probe!.u).toBeGreaterThan(0)
+    expect(probe!.u).toBeLessThan(1)
+  })
+})

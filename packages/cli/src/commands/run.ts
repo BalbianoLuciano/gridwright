@@ -153,13 +153,14 @@ async function runDistill(root: string, state: RunState): Promise<void> {
   saveState(root, state)
 
   const doc = JSON.parse(readFileSync(paths.rawTree(root, state.id), 'utf8')) as FigmaNode
-  const { ir, rawTokens } = distill(
+  const { ir, measurements, rawTokens } = distill(
     doc,
     { fileKey: state.source.fileKey, nodeId: state.source.nodeId },
     config.distill,
   )
 
   writeFileSync(paths.ir(root, state.id), JSON.stringify(ir, null, 2) + '\n')
+  writeFileSync(paths.measurements(root, state.id), JSON.stringify(measurements, null, 2) + '\n')
 
   const rawSize = readFileSync(paths.rawTree(root, state.id), 'utf8').length
   const irSize = JSON.stringify(ir).length
@@ -180,7 +181,10 @@ async function runDistill(root: string, state: RunState): Promise<void> {
 
   advance(state, 'distill', {
     status: 'done',
-    output: { nodes: countNodes(ir), warnings: ir.warnings.length, hash: ir.hash, rawTokens: rawTokens.length },
+    output: {
+      nodes: countNodes(ir), warnings: ir.warnings.length, hash: ir.hash,
+      rawTokens: rawTokens.length, measured: measurements.nodes.length,
+    },
   })
   saveState(root, state)
 }
