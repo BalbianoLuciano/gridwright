@@ -17,7 +17,7 @@ import {
 } from '@gridwright/core'
 import {
   readTokenSystem, resolveTokens, summarize, overBudget, previewTokens, writeTokens,
-  type Resolution, type TokenWrite,
+  isFrameworkDefault, type Resolution, type TokenWrite,
 } from '@gridwright/tokens'
 import { ok, fail, info, warn, step, dim, bold, green, yellow, table } from '../ui.js'
 
@@ -61,7 +61,11 @@ export function runResolve(root: string, args: TokensArgs): void {
 
   writeFileSync(paths.resolutions(root, run.id), JSON.stringify(resolutions, null, 2) + '\n')
 
-  step(`${raw.length} design values against ${system.tokens.length} project tokens`)
+  const declared = system.tokens.filter((t) => !isFrameworkDefault(t)).length
+  step(
+    `${raw.length} design values against ${declared} project tokens ` +
+      dim(`+ ${system.tokens.length - declared} from the framework's own scale`),
+  )
   table([
     ['exact', `${counts.exact} ${dim('— already in the system')}`],
     ['near', `${counts.near} ${dim("— using the system's value, drift reported")}`],
@@ -70,6 +74,17 @@ export function runResolve(root: string, args: TokensArgs): void {
 
   // The bucket that saves the design system: state the substitutions out loud,
   // because the pipeline is choosing the system's value over the design's.
+  // Matching the framework's scale is worth saying out loud: it means the value
+  // was already reachable, and a token would have been redundant.
+  const fromFramework = resolutions.filter((r) => r.match && isFrameworkDefault(r.match))
+  if (fromFramework.length > 0) {
+    console.log()
+    console.log(bold('  Already in the framework'))
+    for (const r of fromFramework.slice(0, 6)) {
+      console.log(`    ${dim('·')} ${r.raw.value} → ${r.match!.name} ${dim('(no new token needed)')}`)
+    }
+  }
+
   const near = resolutions.filter((r) => r.bucket === 'near')
   if (near.length > 0) {
     console.log()

@@ -16,6 +16,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Project, SyntaxKind, type ObjectLiteralExpression } from 'ts-morph'
+import { withDefaults } from './defaults.js'
 
 export type TokenKind = 'color' | 'spacing' | 'typography' | 'radius' | 'shadow' | 'border' | 'other'
 
@@ -45,7 +46,19 @@ const SECTION_KINDS: Record<string, TokenKind> = {
   borderRadius: 'radius', boxShadow: 'shadow', borderWidth: 'border',
 }
 
+/**
+ * The project's tokens, plus the scale its framework already provides.
+ *
+ * Reading the config alone makes a project that follows Tailwind's default
+ * scale look like it has no scale at all, and every value in the design then
+ * arrives as new.
+ */
 export function readTokenSystem(projectRoot: string, target?: string, file?: string): TokenSystem {
+  const system = readDeclared(projectRoot, target, file)
+  return { ...system, tokens: withDefaults(system.tokens, system.target) }
+}
+
+function readDeclared(projectRoot: string, target?: string, file?: string): TokenSystem {
   if (file) {
     const abs = join(projectRoot, file)
     if (existsSync(abs)) {
