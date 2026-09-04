@@ -48,6 +48,7 @@ function resolveOne(raw: RawToken, existing: ExistingToken[], opts: ResolveOptio
   if (raw.kind === 'spacing' || raw.kind === 'radius') return resolveLength(raw, candidates, opts)
   if (raw.kind === 'border') return resolveComposite(raw, existing, opts, borderParts(raw.value))
   if (raw.kind === 'typography') return resolveComposite(raw, existing, opts, typographyParts(raw.value))
+  if (raw.kind === 'gradient') return resolveComposite(raw, existing, opts, gradientParts(raw.value))
 
   const exact = candidates.find((c) => normalize(c.value) === normalize(raw.value))
   if (exact) return { bucket: 'exact', raw, match: exact }
@@ -115,6 +116,26 @@ function borderParts(value: string): Part[] {
     { label: 'width', kind: 'border', value: m[1]! },
     { label: 'colour', kind: 'color', value: m[2]! },
   ]
+}
+
+/**
+ * A gradient is its colour stops.
+ *
+ * `linear-gradient(180deg, #f8f7f7 50%, #004a55 50%)` is two colours the
+ * project already has, arranged. Tailwind writes it as
+ * `bg-gradient-to-b from-cream-200 to-primary-800`, so a token for the whole
+ * thing would freeze an arrangement and duplicate two palette entries at once.
+ *
+ * The angle and the stop positions belong to the component, not the system:
+ * the same two colours cut at 70% is the same palette, a different design.
+ */
+function gradientParts(value: string): Part[] {
+  const out: Part[] = []
+  let i = 0
+  for (const m of value.matchAll(/#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})\b/gi)) {
+    out.push({ label: `stop ${++i}`, kind: 'color', value: m[0] })
+  }
+  return out
 }
 
 /**

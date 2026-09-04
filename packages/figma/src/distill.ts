@@ -559,12 +559,30 @@ export function camelCase(name: string): string {
   return p[0]!.toLowerCase() + p.slice(1)
 }
 
-/** Name of the prop the content comes in through. Prefers the layer name; when
- *  that is generic, falls back to the content. */
+/**
+ * Name of the prop the content comes in through.
+ *
+ * Capped at three words. Designers routinely name a text layer with the whole
+ * placeholder — "2 linea máximo lorem ipsum dolor sit amet consectetur…" — and
+ * using it whole produced a sixty-character prop name that no one would type.
+ * The layer name is still preferred; it is just not allowed to run away.
+ */
 function slotName(layerName: string, text: string): string {
-  const clean = camelCase(layerName)
+  const clean = shortCamel(layerName)
   if (clean && !/^(text|label|content|frame|group)\d*$/i.test(clean)) return clean
-  return camelCase(text.split(/\s+/).slice(0, 3).join(' ')) || 'text'
+  return shortCamel(text) || 'text'
+}
+
+function shortCamel(input: string): string {
+  const words = sanitize(input)
+    .replace(/[^A-Za-z0-9\s-]/g, ' ')
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    // A leading number cannot start an identifier and carries no meaning here:
+    // "2 linea máximo" is a designer's note about line count.
+    .filter((w, i) => !(i === 0 && /^\d+$/.test(w)))
+    .slice(0, 3)
+  return words.length > 0 ? camelCase(words.join(' ')) : ''
 }
 
 /**

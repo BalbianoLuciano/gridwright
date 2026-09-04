@@ -21,6 +21,10 @@ export interface IndexedComponent {
   name: string
   path: string
   props: string[]
+  /** Figma node ids mentioned anywhere in the file. Teams that work from a
+   *  design routinely write down which node a component came from, and that is
+   *  a far better signal than the name they happened to give it. */
+  nodes: string[]
   /** Roles the component's markup suggests, in document order. Rough on
    *  purpose — it is a hint for matching, not a parse of the framework. */
   shape: IRRole[]
@@ -29,7 +33,7 @@ export interface IndexedComponent {
   registered?: RegistryEntry
 }
 
-export type MatchReason = 'same-design' | 'same-name' | 'similar-name' | 'similar-shape'
+export type MatchReason = 'same-design' | 'same-node' | 'same-name' | 'similar-name' | 'similar-shape'
 
 export interface Candidate {
   /** The IR node this could cover — empty for the root. */
@@ -57,6 +61,25 @@ export function survey(root: string, config: GridwrightConfig, ir: IR): SurveyRe
 
   const duplicate = Object.entries(registry).find(([, e]) => e.figma.irHash === ir.hash)
   const candidates: Candidate[] = []
+
+  /**
+   * Strongest signal short of the hash: a component that names this very node.
+   *
+   * Found on a real run. The design was node 1:61528 "Wrapper full", and the
+   * project already had a ValuePropositionCard whose own comment said
+   * `Design: node 1:61528 "Wrapper full"`. Matching on names alone found
+   * nothing and the pipeline was about to rebuild it — the exact failure
+   * survey exists to prevent, one layer name away.
+   */
+  for (const component of indexed) {
+    if (component.nodes.includes(ir.source.node)) {
+      candidates.push({
+        target: '', component, confidence: 0.98, reason: 'same-node',
+        note: `${component.name} says it was built from this node (${ir.source.node}). ` +
+          `This is almost certainly an update to it, not a new component.`,
+      })
+    }
+  }
 
   // The root first: is this whole design already a component?
   candidates.push(...matchNode(ir.name, ir.children, indexed, ''))
@@ -121,6 +144,7 @@ export function indexComponents(
         path: rel,
         props: registered?.props ?? extractProps(source),
         shape: extractShape(source),
+        nodes: extractNodeIds(source),
         ...(registered ? { registered } : {}),
       })
     }
@@ -148,6 +172,15 @@ function* walk(dir: string, depth = 0): Generator<string> {
     if (stat.isDirectory()) yield* walk(full, depth + 1)
     else if (SOURCE_EXT.has(extname(entry))) yield full
   }
+}
+
+/** `1:61528`, `1-61528`, `node-id=1-61528` — however a team happens to write it. */
+export function extractNodeIds(source: string): string[] {
+  const out = new Set<string>()
+  for (const m of source.matchAll(/\b(\d{1,6})[:-](\d{2,6})\b/g)) {
+    out.add(`${m[1]}:${m[2]}`)
+  }
+  return [...out]
 }
 
 /** `Card/index.tsx` is Card; `Card.tsx` is Card. Barrels and helpers are not

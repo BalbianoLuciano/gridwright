@@ -18,11 +18,13 @@
  * line in a function.
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
-  loadState, paths, STAGE_SPECS, type RunState, type Stage,
+  loadConfig, loadState, paths, STAGE_SPECS, type RunState, type Stage,
 } from '@gridwright/core'
-import { runResolve } from './tokens.js'
+import { runResolve, runTokens } from './tokens.js'
+import { runEnsure } from './library.js'
 import { runSurvey } from './survey.js'
 import { runReport } from './report.js'
 import { dim, info, step, bold, yellow } from '../ui.js'
@@ -34,9 +36,44 @@ export interface StopReason {
   next: string
 }
 
+/**
+ * A gate with nothing behind it is not a gate.
+ *
+ * Law 5 protects writes: nothing that mutates the project happens without a
+ * person saying yes. When a run resolves every design value against tokens the
+ * project already has, `tokens` writes nothing — and stopping there asks
+ * someone to approve an empty diff, which teaches them to approve without
+ * looking. That is worse than not asking.
+ *
+ * Only ever true when there is genuinely nothing to write. Anything uncertain
+ * counts as a gate.
+ */
+function gateIsEmpty(root: string, run: RunState, stage: Stage): boolean {
+  if (stage === 'tokens') {
+    const path = paths.resolutions(root, run.id)
+    if (!existsSync(path)) return false
+    try {
+      const resolutions = JSON.parse(readFileSync(path, 'utf8')) as Array<{ bucket: string }>
+      return resolutions.every((r) => r.bucket !== 'new')
+    } catch {
+      return false
+    }
+  }
+  if (stage === 'library:ensure') {
+    // Only the first time is invasive. After that there is nothing to create.
+    const config = loadConfig(root)
+    return config ? existsSync(join(root, config.library.dir)) : false
+  }
+  return false
+}
+
 /** Stages this can execute on its own, given the run's own artifacts. */
 const AUTOMATIC: Partial<Record<Stage, (root: string, run: RunState) => void>> = {
   resolve: (root, run) => runResolve(root, { run: run.id }),
+  // Reached only when the gate is empty; it closes the stage with "nothing to
+  // write" rather than writing anything.
+  tokens: (root, run) => runTokens(root, { run: run.id }),
+  'library:ensure': (root, run) => runEnsure(root, { run: run.id, approve: true }),
   survey: (root, run) => runSurvey(root, { run: run.id }),
   report: (root, run) => runReport(root, { run: run.id }),
 }
@@ -69,7 +106,13 @@ export function autorun(root: string, run: RunState): StopReason {
     const stage = run.stage
     const spec = STAGE_SPECS[stage]
 
-    if (spec.gate) {
+    // Checked before both of the guards below: a stage with nothing to do is
+    // neither a decision to approve nor judgment to apply. `tokens` is the
+    // model's work because naming takes judgment — with no names to give, there
+    // is nothing to judge.
+    const empty = gateIsEmpty(root, run, stage)
+
+    if (spec.gate && !empty) {
       return {
         stage, kind: spec.actor === 'human' ? 'human' : 'gate',
         message: `${stage} needs a person to approve it (Law 5).`,
@@ -77,7 +120,7 @@ export function autorun(root: string, run: RunState): StopReason {
       }
     }
 
-    if (spec.actor === 'agent') {
+    if (spec.actor === 'agent' && !empty) {
       return {
         stage, kind: 'agent',
         message: `${stage} is the model's work, not the CLI's (Law 3): ${spec.summary.toLowerCase()}.`,
