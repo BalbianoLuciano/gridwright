@@ -111,13 +111,11 @@ export const STAGE_SPECS: Record<Stage, StageSpec> = {
  * Development phase that is built today. Anything in a higher phase reports
  * "not implemented" instead of pretending.
  *
- * Being built is not the same as being reachable. Phases 2 and 3 are done, but
- * `tokens` and `library:ensure` sit at stages 4 and 5, are mandatory, and
- * belong to phase 4 — so a run still stops before it can get to `author` or
- * `verify`. `gw verify` and `gw refine` work standalone precisely because of
- * this; phase 4 is what opens the pipeline end to end.
+ * Phases 1 through 4 are built, which means a run can now go from a Figma node
+ * to a registered component without stopping at a stage that does not exist.
+ * Only `survey` — phase 5, and view mode with it — is still missing.
  */
-export const IMPLEMENTED_THROUGH_PHASE = 3
+export const IMPLEMENTED_THROUGH_PHASE = 4
 
 /** The first stage a run cannot get past today, or null when it can run through. */
 export function firstBlockingStage(): Stage | null {

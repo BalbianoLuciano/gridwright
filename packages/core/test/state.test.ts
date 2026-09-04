@@ -80,38 +80,33 @@ describe('protocol — what Claude gets back from `gw next`', () => {
   })
 
   // Not pretending a stage ran is part of the contract.
-  it('says explicitly when the stage is not built yet', () => {
+  it('says explicitly when a stage is not built yet', () => {
     const s = make()
-    for (const st of ['fetch', 'distill'] as const) advance(s, st, { status: 'done' })
-    const d = directive(s, '/repo')
-    expect(d.blocked?.phase).toBe(4)
+    for (const st of STAGES.slice(1, STAGES.indexOf('survey'))) {
+      advance(s, st, { status: st === 'tokens' || st === 'library:ensure' ? 'done' : 'done' })
+    }
+    expect(s.stage).toBe('survey')
+    expect(directive(s, '/repo').blocked?.phase).toBe(5)
   })
 
   it('knows which stages are built and which are not', () => {
-    for (const s of ['fetch', 'distill', 'verify', 'author', 'refine'] as const) {
+    for (const s of ['fetch', 'distill', 'resolve', 'tokens', 'library:ensure',
+                     'plan', 'author', 'verify', 'refine', 'golden',
+                     'library:register', 'report'] as const) {
       expect(isImplemented(s)).toBe(true)
     }
-    for (const s of ['resolve', 'tokens', 'library:ensure', 'survey'] as const) {
-      expect(isImplemented(s)).toBe(false)
-    }
+    // Phase 5, and view mode with it.
+    expect(isImplemented('survey')).toBe(false)
   })
 
   /**
-   * Built is not the same as reachable, and the difference is the whole reason
-   * `gw verify` and `gw refine` also work standalone.
-   *
-   * `author` and `verify` are done, but a run cannot get to either: `resolve`
-   * comes first and belongs to phase 4, and the two stages behind it are
-   * mandatory so they cannot be skipped past. Phase 4 is what opens the
-   * pipeline end to end.
+   * The pipeline used to stop at `resolve`, three stages before `author`,
+   * because `tokens` and `library:ensure` were mandatory and did not exist yet.
+   * Phase 4 closed that, and this pins where the remaining edge is so the next
+   * gap is as visible as that one turned out to be.
    */
-  it('a run still stops at resolve, three stages before author', () => {
-    expect(firstBlockingStage()).toBe('resolve')
-
-    const s = make()
-    advance(s, 'fetch', { status: 'done' })
-    advance(s, 'distill', { status: 'done' })
-    expect(directive(s, '/repo').blocked).toBeTruthy()
-    expect(STAGES.indexOf('resolve')).toBeLessThan(STAGES.indexOf('author'))
+  it('the only stage a run cannot get past is survey', () => {
+    expect(firstBlockingStage()).toBe('survey')
+    expect(STAGES.indexOf('survey')).toBeGreaterThan(STAGES.indexOf('library:ensure'))
   })
 })

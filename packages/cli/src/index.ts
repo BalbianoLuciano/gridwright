@@ -15,6 +15,8 @@ import { done, skip, markFailed } from './commands/advance.js'
 import { refine } from './commands/refine.js'
 import { runResolve, runTokens } from './commands/tokens.js'
 import { runEnsure, runRegister } from './commands/library.js'
+import { runGolden } from './commands/golden.js'
+import { runReport } from './commands/report.js'
 import { bold, dim, fail, green } from './ui.js'
 import { FigmaError } from '@gridwright/figma'
 
@@ -41,6 +43,8 @@ const HELP = `${bold('gw')} — gridwright
       --names <json|path>      names for them, in the project's convention
     gw library ensure [--approve]
     gw library register --component <path>
+    gw golden [--approve]      freeze the regression baseline — ${dim('human gate')}
+    gw report                  write the dashboard
 
   ${bold('Verification')}
     gw verify --component <path> --figma "<url>"
@@ -164,6 +168,16 @@ async function main(): Promise<void> {
       if (args.sub === 'register') return runRegister(root, libArgs)
       return fail(`\`gw library ${args.sub ?? ''}\` does not exist.`, 'Options: ensure, register')
     }
+
+    case 'golden':
+      return runGolden(root, {
+        run: args.values.get('run'),
+        component: args.values.get('component'),
+        approve: args.flags.has('approve'),
+      })
+
+    case 'report':
+      return runReport(root, { run: args.values.get('run') })
 
     case 'done':
       return done(root, transitionArgs(args))
