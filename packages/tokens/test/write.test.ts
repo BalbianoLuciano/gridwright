@@ -88,3 +88,43 @@ describe('writing tokens into a real config', () => {
     expect(result.written).toHaveLength(0)
   })
 })
+
+/**
+ * A project declaring `brand.DEFAULT` as `rgb(var(--sf-brand) / <alpha-value>)`
+ * had it overwritten with `#007a8d`. That silently removes opacity support —
+ * `bg-brand/50` stops working — and severs a single source of truth living in a
+ * CSS file this writer never looked at.
+ *
+ * read.ts already marks these `comparable: false` and documents why. The writer
+ * simply was not asking.
+ */
+describe('never downgrade a computed token to a literal', () => {
+  it('refuses, and says what the expression was', () => {
+    // colors.accent in the fixture is `withOpacity('accent', '255 90 60')`.
+    expect(() => writeTokens(dir, system(), [
+      { name: 'accent', value: '#ff5a3c', section: 'colors' },
+    ])).toThrow(/already exists and is computed/)
+  })
+
+  it('leaves the file untouched when it refuses', () => {
+    const before = read()
+    try {
+      writeTokens(dir, system(), [{ name: 'accent', value: '#ff5a3c', section: 'colors' }])
+    } catch {
+      // expected
+    }
+    expect(read()).toBe(before)
+  })
+
+  it('still overwrites a plain literal, which is a real update', () => {
+    writeTokens(dir, system(), [{ name: 'primary.500', value: '#00869b', section: 'colors' }])
+    const after = readTailwindConfig(join(dir, 'tailwind.config.js'), 'x')
+    expect(after.tokens.find((t) => t.name === 'colors.primary.500')?.value).toBe('#00869b')
+  })
+
+  it('a new name beside a computed one is fine', () => {
+    writeTokens(dir, system(), [{ name: 'accent.600', value: '#ff5a3c', section: 'colors' }])
+    const after = readTailwindConfig(join(dir, 'tailwind.config.js'), 'x')
+    expect(after.tokens.find((t) => t.name === 'colors.accent.600')?.value).toBe('#ff5a3c')
+  })
+})

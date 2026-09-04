@@ -59,12 +59,30 @@ export interface Weights {
 // --- structural --------------------------------------------------------------
 
 /**
- * Matches design nodes to rendered ones by depth and reading order, then scores
- * each pair by overlap.
+ * Matches design nodes to rendered ones, then scores each pair by overlap.
  *
  * Matching by geometry alone would be circular: a badly placed element would
  * pair with whatever happens to sit where it should have been, and score well.
  * Tree position is the thing that survives being wrong.
+ *
+ * Two ways to establish that position, in order of preference.
+ *
+ * **By layer path**, when the component labels its nodes with `data-gw`. This
+ * is what `MeasuredNode.path` was always for — its own doc comment calls it
+ * "stable enough to match against a rendered tree".
+ *
+ * **By depth and reading order** otherwise, which is fragile in a way that is
+ * easy to miss. It pairs `design[i]` with `rendered[i]` at the same depth, so
+ * one wrapper div or one inlined `<svg>` shifts every pair after it and the
+ * dimension reports nonsense — a button measured against an illustration's
+ * box, and every colour probe landing on the wrong element. It also silently
+ * demands that the DOM mirror Figma's tree, and a Figma button carries six
+ * levels of component-instance wrappers that no sane component reproduces.
+ *
+ * So when even one label matches, identity wins for every node, and design
+ * nodes with no counterpart are reported `missing` rather than paired with a
+ * stranger. "Label this node" is actionable; a cascade of phantom deltas is
+ * not.
  */
 export function scoreStructural(
   design: MeasuredNode[],
@@ -98,15 +116,64 @@ export function scoreStructural(
   let sum = 0
   let counted = 0
 
+  // Figma lets siblings share a name, and this design has two `Content` nodes
+  // under the same parent, so a path alone is not a key. Nodes are keyed by
+  // path *and* their occurrence within it, in reading order — positional
+  // matching, but scoped to the handful of nodes that genuinely collide
+  // instead of to every node at a depth.
+  const keyed = (ns: MeasuredNode[]) => {
+    const groups = new Map<string, MeasuredNode[]>()
+    for (const n of ns) {
+      const list = groups.get(n.path) ?? []
+      list.push(n)
+      groups.set(n.path, list)
+    }
+    const m = new Map<string, MeasuredNode>()
+    for (const [path, list] of groups) {
+      list.sort((a, b) => a.y - b.y || a.x - b.x)
+      list.forEach((n, i) => m.set(`${path}#${i}`, n))
+    }
+    return m
+  }
+
+  const designKeys = keyed(design)
+  const renderedKeys = keyed(rendered)
+
+  // Identity first, then reading order for whatever is left over. Partial
+  // labelling is the realistic case, not the exception: Figma names a text
+  // layer after its own contents, so the honest label for a paragraph is the
+  // whole lorem passage, and nobody is putting that in a `data-gw`. Those
+  // nodes still get measured — positionally, against what identity did not
+  // already claim, so a labelled sibling can no longer be stolen from them.
+  const pairs = new Map<MeasuredNode, MeasuredNode>()
+  const claimed = new Set<MeasuredNode>()
+  for (const [key, d] of designKeys) {
+    const r = renderedKeys.get(key)
+    if (r) {
+      pairs.set(d, r)
+      claimed.add(r)
+    }
+  }
+
+  const leftovers = byDepth(rendered.filter((n) => !claimed.has(n)))
+  for (const [depth, designNodes] of dd) {
+    const pool = leftovers.get(depth) ?? []
+    let j = 0
+    for (const d of designNodes) {
+      if (pairs.has(d)) continue
+      const r = pool[j++]
+      if (r) pairs.set(d, r)
+    }
+  }
+
   // Tolerance is in render pixels; overlap is normalized. Convert once.
   const slack = renderedRoot.width > 0 ? tolerancePx / renderedRoot.width : 0
 
-  for (const [depth, designNodes] of dd) {
-    const renderedNodes = rr.get(depth) ?? []
+  for (const [, designNodes] of dd) {
     for (let i = 0; i < designNodes.length; i++) {
       const d = designNodes[i]!
       counted++
-      const r = renderedNodes[i]
+      const r = pairs.get(d)
       if (!r) {
         // Present in the design, absent from the render. Scores zero, and says so.
         findings.push({ path: d.path, edge: 'missing', delta: 0, overlap: 0 })

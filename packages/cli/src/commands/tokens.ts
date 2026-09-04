@@ -17,7 +17,7 @@ import {
 } from '@gridwright/core'
 import {
   readTokenSystem, resolveTokens, summarize, overBudget, previewTokens, writeTokens,
-  isFrameworkDefault, type Resolution, type TokenWrite,
+  isFrameworkDefault, ComputedTokenCollision, type Resolution, type TokenWrite,
 } from '@gridwright/tokens'
 import { ok, fail, info, warn, step, dim, bold, green, yellow, table } from '../ui.js'
 
@@ -162,7 +162,17 @@ export function runTokens(root: string, args: TokensArgs): void {
     return
   }
 
-  const result = writeTokens(root, system, writes)
+  let result
+  try {
+    result = writeTokens(root, system, writes)
+  } catch (e) {
+    if (e instanceof ComputedTokenCollision) {
+      // A decision, not a failure: the value may belong in the CSS file the
+      // expression reads from, or the name may simply be taken.
+      fail(`Cannot write \`${e.token}\`.`, e.message.split('\n').slice(1).join('\n'))
+    }
+    throw e
+  }
   ok(`${result.written.length} tokens written to ${result.file}`)
   for (const w of result.written) console.log(`    ${dim('·')} ${w.section}.${w.name} = ${w.value}`)
 

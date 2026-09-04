@@ -109,6 +109,41 @@ describe('structural — the dimension that carries half the weight', () => {
   it('reports nothing rendered instead of scoring it wrong', () => {
     expect(scoreStructural(design, ROOT, [], ROOT, 2).unavailable).toBeTruthy()
   })
+
+  // The failure that made identity matching necessary. Positional pairing takes
+  // design[i] against rendered[i] at a depth, so one inlined <svg> ahead of its
+  // siblings shifts every pair after it: the title ends up measured against the
+  // illustration's box and a correct component reports nonsense.
+  it('an inlined svg ahead of its siblings does not shift every pair', () => {
+    const withIcon = [
+      node('Wrapper / Card / Icon', 2, { x: 88, y: 70, width: 24, height: 24 }),
+      ...design,
+    ]
+    expect(scoreStructural(design, ROOT, withIcon, ROOT, 2).score).toBe(100)
+  })
+
+  // Figma lets siblings share a name, so the path alone is not a key.
+  it('siblings sharing a name pair by occurrence, in reading order', () => {
+    const twins = [
+      node('Wrapper / Col', 1, { x: 64, y: 64, width: 200, height: 100 }),
+      node('Wrapper / Col', 1, { x: 64, y: 264, width: 200, height: 100 }),
+    ]
+    expect(scoreStructural(twins, ROOT, twins, ROOT, 2).score).toBe(100)
+
+    // A shared name must not absorb a real difference between the two.
+    const wrong = [
+      node('Wrapper / Col', 1, { x: 64, y: 64, width: 900, height: 100 }),
+      node('Wrapper / Col', 1, { x: 64, y: 264, width: 200, height: 100 }),
+    ]
+    expect(scoreStructural(twins, ROOT, wrong, ROOT, 2).score).toBeLessThan(90)
+  })
+
+  // An unlabelled component still gets measured; it just gets the old, brittle
+  // pairing rather than nothing at all.
+  it('falls back to depth and reading order when the render carries no labels', () => {
+    const unlabelled = design.map((n, i) => node(`div${i}`, n.depth, n))
+    expect(scoreStructural(design, ROOT, unlabelled, ROOT, 2).score).toBe(100)
+  })
 })
 
 describe('perceptual', () => {

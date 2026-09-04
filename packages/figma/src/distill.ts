@@ -76,6 +76,24 @@ export function distill(
     hash: '',
   }
 
+  /**
+   * The measurements are filtered to the tree that survived pruning.
+   *
+   * `ctx.measured` is filled during the walk, before `collapse()` removes the
+   * wrappers it decides are meaningless. Left unfiltered, `author` builds from
+   * the pruned tree and `verify` grades against the unpruned one — so every
+   * node the pruning removed was a guaranteed zero, scored against an agent
+   * that was explicitly told it did not exist.
+   *
+   * Worse, the gap grew with the pruning: the better `collapse()` got, the
+   * lower a correct component scored. A quality improvement in one half of
+   * distill was a regression in the other.
+   */
+  const surviving = new Set<string>()
+  collectPaths(ir.children, surviving)
+  ctx.measured = ctx.measured.filter((m) => surviving.has(m.path))
+  stripPaths(ir.children)
+
   const variants = readVariants(root)
   if (variants) ir.variants = variants
 
@@ -84,7 +102,7 @@ export function distill(
   const measurements: Measurements = {
     source: { file: source.fileKey, node: source.nodeId },
     root: rootBox,
-    nodes: ctx.measured,
+    nodes: collapsePassThrough(ctx.measured),
     probes: ctx.probes,
     textRegions: ctx.textRegions,
   }
@@ -92,8 +110,64 @@ export function distill(
   return { ir, measurements, rawTokens: [...ctx.raw.values()] }
 }
 
+/**
+ * Drops nodes that occupy exactly their parent's box.
+ *
+ * A Figma component instance arrives wrapped in its own plumbing. The button
+ * icon in Santillana's newsletter band is six nodes deep — `sl-icon-santillana
+ * / sl-icon / SL-icon/md / Base/Icon / icon-container / icon` — and all six
+ * share one 16x16 box. They are not six layout elements; they are one, seen
+ * through five instance boundaries.
+ *
+ * Left in, they set a ceiling on the score that no component can reach. Every
+ * design node without a counterpart in the render scores zero, and nothing
+ * sane emits five nested spans around an `<svg>` to satisfy the measurement.
+ * A correct component was capped around 70%.
+ *
+ * The test is the box, not the name: if a child fills its parent exactly, it
+ * adds nothing this dimension can measure. The outermost survives, because
+ * that is the one whose name the design gave meaning to.
+ */
+function collapsePassThrough(nodes: MeasuredNode[]): MeasuredNode[] {
+  const kept: MeasuredNode[] = []
+  // Pre-order, so the nearest kept ancestor is the last kept node above this
+  // depth. Chains collapse as a unit: once a wrapper is dropped, its children
+  // are compared against the ancestor that survived, not against the wrapper.
+  const ancestors: MeasuredNode[] = []
+
+  for (const n of nodes) {
+    while (ancestors.length && ancestors[ancestors.length - 1]!.depth >= n.depth) ancestors.pop()
+    const parent = ancestors[ancestors.length - 1]
+    if (parent && sameBox(parent, n)) continue
+    kept.push(n)
+    ancestors.push(n)
+  }
+  return kept
+}
+
+/** A pixel of slack: Figma reports fractional boxes and 0.5px is not a layer. */
+function sameBox(a: MeasuredNode, b: MeasuredNode): boolean {
+  return Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) < 1
+    && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1
+}
+
 /** If the design did not use auto-layout there is no layout to extract.
  *  Halting beats emitting two hundred lines that merely look right. */
+function collectPaths(nodes: IRNode[], into: Set<string>): void {
+  for (const n of nodes) {
+    const path = (n as IRNode & { _path?: string })._path
+    if (path) into.add(path)
+    if (n.children) collectPaths(n.children, into)
+  }
+}
+
+function stripPaths(nodes: IRNode[]): void {
+  for (const n of nodes) {
+    delete (n as IRNode & { _path?: string })._path
+    if (n.children) stripPaths(n.children)
+  }
+}
+
 export function shouldHalt(ir: IR, opts: DistillOptions): { halt: boolean; reason?: string } {
   const absolute = ir.warnings.filter((w) => w.code === 'absolute-positioning').length
   if (absolute > opts.maxAbsoluteNodes) {
@@ -145,6 +219,9 @@ function walk(node: FigmaNode, ctx: Ctx, parentPath: string, depth: number): IRN
 
   const role = detectRole(node)
   const out: IRNode = { role, name: sanitize(node.name) }
+  // Carried through the walk so the measurements can be filtered to whatever
+  // survives pruning, then stripped: the model never sees it.
+  ;(out as IRNode & { _path?: string })._path = path
 
   // Recorded for `verify` even though it never reaches the IR. Nodes with no
   // box (Figma sometimes omits it) are skipped rather than measured as zero.
@@ -404,6 +481,8 @@ function collapse(nodes: IRNode[]): IRNode[] {
       !cur.layout?.padding &&
       !cur.layout?.gap
     ) {
+      // The child replaces the wrapper and keeps its own path: it is the node
+      // that will exist in the render, so it is the one to grade against.
       cur = cur.children[0]!
     }
     if (cur.children) cur = { ...cur, children: collapse(cur.children) }

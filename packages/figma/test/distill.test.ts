@@ -252,3 +252,43 @@ describe('distill — the measurements verify needs', () => {
     expect(probe!.u).toBeLessThan(1)
   })
 })
+
+/**
+ * The IR and the measurements have to be the same tree.
+ *
+ * `ctx.measured` was filled during the walk, before `collapse()` removed the
+ * wrappers it judged meaningless — so `author` built from the pruned tree and
+ * `verify` graded against the unpruned one. Every node the pruning removed was
+ * a guaranteed zero, scored against an agent that had been told it did not
+ * exist.
+ *
+ * And the gap grew with the pruning: the better collapse got, the lower a
+ * correct component scored. A quality improvement in one half of distill was a
+ * regression in the other.
+ */
+describe('distill — one tree, one contract', () => {
+  const { ir, measurements } = distill(fixture('hero-auto-layout'), SOURCE, OPTS)
+  const namesIn = (ns: typeof ir.children, into = new Set<string>()): Set<string> => {
+    for (const n of ns) {
+      into.add(n.name)
+      if (n.children) namesIn(n.children, into)
+    }
+    return into
+  }
+
+  it('grades nothing the model was not given', () => {
+    const inIr = namesIn(ir.children)
+    for (const node of measurements.nodes) expect(inIr.has(node.name)).toBe(true)
+  })
+
+  // "Wrapper" is collapsed away in this fixture; it must not be graded.
+  it('drops a collapsed wrapper from the measurements too', () => {
+    expect(measurements.nodes.some((n) => n.name === 'Wrapper')).toBe(false)
+    expect(measurements.nodes.some((n) => n.name === 'Title')).toBe(true)
+  })
+
+  // The path is bookkeeping for this filter, not something the model should see.
+  it('leaves no trace of the internal path in the IR', () => {
+    expect(JSON.stringify(ir)).not.toContain('_path')
+  })
+})
