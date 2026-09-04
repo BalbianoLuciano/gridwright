@@ -1,6 +1,7 @@
 # Spec 002 — Corrections from the first end-to-end run
 
-> Status: draft · 2026-09-04
+> Status: in progress · 2026-09-04
+> Six of twelve are fixed; each one says so under its own heading.
 > Amends `001-pipeline.md`. Everything here came out of running the pipeline
 > end to end against a real Figma node for the first time, in a real consuming
 > project. Nothing in this document is specific to that project.
@@ -36,6 +37,11 @@ and the ordering was inverted anyway. That is the finding behind all the others.
 ---
 
 ## 1 — `distill` emits two trees and only one is a contract
+
+> **Fixed.** Nodes carry their layer path through the walk, the measurements are
+filtered to whatever survives `collapse()`, and the path is stripped before the
+IR leaves. On a real node this removes the six levels of Figma instance plumbing
+around one icon from the graded set.
 
 **The defect.** `collapse()` prunes the IR: a container with a single child, no
 layout of its own, no padding and no background is dropped. Its comment says
@@ -125,6 +131,10 @@ needs one fetched frame per breakpoint; anything else is inventing a reference.
 
 ## 4 — Nothing can falsify the ruler
 
+> **Fixed.** `inconsistency()` flags high perceptual against low structural, and
+`refine` stops on it rather than spending an iteration. Only `--focus`
+overrides.
+
 **The defect.** `refine` attributes 100% of the gap to the component. Always. Its
 iteration cap is spent editing code that may be correct.
 
@@ -144,6 +154,9 @@ the layout. Stop and say so. Do not spend an iteration.
 ---
 
 ## 5 — `author` submits blind
+
+> **Fixed.** `DimensionScore.coverage` is reported, and below two thirds matched
+the structural dimension returns `unavailable` instead of a figure.
 
 **The defect.** The agent writes, then gets a number. There is no acceptance
 criterion it can check before submitting, and no way to distinguish "this scored
@@ -181,6 +194,10 @@ belongs behind the threshold. Being *known about* is not the same as being
 ---
 
 ## 7 — Colour probes cannot measure text
+
+> **Fixed.** Probes carry which property holds their colour; text is read from
+`getComputedStyle().color`. The IR field is still called `bg`, which is still
+wrong for most of the nodes that carry one.
 
 **The defect.** `scoreChromatic` samples one pixel at the centre of a node's
 box. For a `TEXT` node the fill is the colour of the **glyphs**, and the centre
@@ -241,6 +258,9 @@ table of contents and per-viewport sections that can be linked to.
 
 ## 10 — The token writer downgrades computed tokens to literals
 
+> **Fixed.** The writer refuses, names the expression it found, and hands the
+decision back to the person at the gate.
+
 **The defect.** A project declaring `brand.DEFAULT` as
 `rgb(var(--sf-brand) / <alpha-value>)` had it overwritten with `#007a8d`. That
 silently removes opacity support (`bg-brand/50`) and breaks the project's single
@@ -285,6 +305,17 @@ for decisions that are not real spends the only budget the pipeline cannot
 refill, which is the person's attention.
 
 ---
+
+## Not in this document, found while fixing it
+
+**The pipeline knew where a component goes and not how it is written.** A
+project can have several shapes at once — santillanafrancais has three — and
+they are not interchangeable: a module exporting `default` where the project
+exports a named `Component`, or missing a `fields` its CMS requires, compiles,
+renders in the harness, scores well and does not work in the product. Nothing
+downstream catches it, because every check here is about fidelity to the design.
+Shapes and convention docs are now inferred from the repo and reach the model at
+`plan` and `author`.
 
 ## Suggested order
 
