@@ -149,3 +149,73 @@ describe('distill — context reduction', () => {
     expect(JSON.stringify(ir).length).toBeLessThan(raw)
   })
 })
+
+/**
+ * Values the distill used to swallow.
+ *
+ * Found by building a real module against a real Figma: the design had a
+ * gradient band and a drop shadow, and neither reached the IR. Nothing failed —
+ * they were simply gone, which is worse. The component gets authored without
+ * them, `verify` then blames the component for a chromatic difference the IR
+ * caused, and `refine` chases a fix that is not there.
+ *
+ * The fixture mirrors the real one: node 1:61528 "Wrapper full", a
+ * #f8f7f7 → #003841 gradient cut at 70%, and a -40/+40 shadow at 5%.
+ */
+describe('distill — what it used to drop in silence', () => {
+  const { ir, rawTokens } = distill(fixture('gradient-and-shadow'), SOURCE, OPTS)
+  const flat = (ns = ir.children): any[] => ns.flatMap((n) => [n, ...flat(n.children ?? [])])
+
+  it('reads a linear gradient with its stops and percentages', () => {
+    expect(ir.tokens.bg).toBe('linear-gradient(180deg, #f8f7f7 0%, #003841 70%)')
+  })
+
+  // The angle comes from gradientHandlePositions; CSS measures from "up" and
+  // clockwise, so a top-to-bottom Figma axis is 180deg, not 0.
+  it('turns the Figma handles into a CSS angle', () => {
+    expect(ir.tokens.bg).toMatch(/^linear-gradient\(180deg,/)
+  })
+
+  it('reads the drop shadow, which lives outside fills', () => {
+    expect(ir.tokens.shadow).toBe('-40px 40px 80px 0px rgba(0, 0, 0, 0.05)')
+  })
+
+  it('reads borders from strokes plus strokeWeight', () => {
+    const card = flat().find((n) => n.name === 'Card destacada')
+    expect(card?.tokens?.border).toBe('2px solid #008599')
+  })
+
+  it('registers gradient, shadow and border as their own token kinds', () => {
+    const kinds = new Set(rawTokens.map((t) => t.kind))
+    expect(kinds).toContain('gradient')
+    expect(kinds).toContain('shadow')
+    expect(kinds).toContain('border')
+  })
+
+  // The point of the fix is not that everything is supported: it is that
+  // nothing disappears quietly.
+  it('warns about a paint it cannot express instead of dropping it', () => {
+    const w = ir.warnings.find((w) => w.code === 'unsupported-paint')
+    expect(w?.message).toMatch(/GRADIENT_ANGULAR/)
+  })
+
+  it('warns about an effect it cannot express instead of dropping it', () => {
+    const w = ir.warnings.find((w) => w.code === 'unsupported-effect')
+    expect(w?.message).toMatch(/LAYER_BLUR/)
+  })
+
+  it('a hidden effect is not a warning: it is not in the design', () => {
+    const hidden = fixture('gradient-and-shadow')
+    hidden.children = []   // "Glow" carries the visible blur; drop it
+    hidden.effects = [{ type: 'LAYER_BLUR', visible: false, radius: 4 }]
+    const { ir: q } = distill(hidden, SOURCE, OPTS)
+    expect(q.warnings.some((w) => w.code === 'unsupported-effect')).toBe(false)
+  })
+
+  it('the hash changes when a gradient changes, so a redesign is not missed', () => {
+    const before = distill(fixture('gradient-and-shadow'), SOURCE, OPTS).ir.hash
+    const changed = fixture('gradient-and-shadow')
+    changed.fills![0]!.gradientStops![1]!.position = 0.9
+    expect(distill(changed, SOURCE, OPTS).ir.hash).not.toBe(before)
+  })
+})

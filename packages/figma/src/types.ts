@@ -4,12 +4,32 @@
 
 export interface FigmaColor { r: number; g: number; b: number; a?: number }
 
+export interface FigmaGradientStop {
+  position: number
+  color: FigmaColor
+}
+
 export interface FigmaPaint {
   type: 'SOLID' | 'IMAGE' | 'GRADIENT_LINEAR' | 'GRADIENT_RADIAL' | string
   visible?: boolean
   opacity?: number
   color?: FigmaColor
   imageRef?: string
+  gradientStops?: FigmaGradientStop[]
+  /** Three normalized points: origin, end of the axis, and width. The CSS angle
+   *  comes out of the first two. */
+  gradientHandlePositions?: Array<{ x: number; y: number }>
+}
+
+/** Shadows and blurs. Figma keeps them apart from fills, which is exactly why
+ *  they were being dropped: nothing that only reads `fills` will ever see one. */
+export interface FigmaEffect {
+  type: 'DROP_SHADOW' | 'INNER_SHADOW' | 'LAYER_BLUR' | 'BACKGROUND_BLUR' | string
+  visible?: boolean
+  color?: FigmaColor
+  offset?: { x: number; y: number }
+  radius?: number
+  spread?: number
 }
 
 export interface FigmaTypeStyle {
@@ -45,6 +65,8 @@ export interface FigmaNode {
   paddingBottom?: number
   paddingLeft?: number
   cornerRadius?: number
+  effects?: FigmaEffect[]
+  strokeWeight?: number
   characters?: string
   style?: FigmaTypeStyle
   exportSettings?: unknown[]

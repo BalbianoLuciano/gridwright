@@ -20,7 +20,7 @@ import { createHash } from 'node:crypto'
 import type {
   IR, IRLayout, IRNode, IRRole, IRWarning, RawToken, Align, Justify, Axis,
 } from '@gridwright/core'
-import type { FigmaAxisAlign, FigmaNode, FigmaPaint } from './types.js'
+import type { FigmaAxisAlign, FigmaColor, FigmaEffect, FigmaNode, FigmaPaint } from './types.js'
 
 export interface DistillOptions {
   maxAbsoluteNodes: number
@@ -215,22 +215,87 @@ function mapAlign(a: FigmaAxisAlign | undefined): Align | undefined {
   }
 }
 
-/** Raw values: background color, radius, typography. `resolve` swaps them for
- *  project token names in phase 4. */
+/**
+ * Raw values: background, radius, typography, shadows, borders. `resolve` swaps
+ * them for project token names in phase 4.
+ *
+ * Anything visible that cannot be represented gets a warning rather than
+ * silence. A design value that vanishes here does not come back: the component
+ * is authored without it, `verify` then blames the component for a difference
+ * the IR caused, and `refine` chases a fix that is not there.
+ */
 function readTokens(node: FigmaNode, ctx: Ctx, path: string): Record<string, string> {
   const out: Record<string, string> = {}
+  const fills = (node.fills ?? []).filter((f) => f.visible !== false)
 
-  const solid = (node.fills ?? []).find((f) => f.type === 'SOLID' && f.visible !== false)
+  const solid = fills.find((f) => f.type === 'SOLID')
   if (solid?.color) {
     const hex = toHex(solid)
     out.bg = hex
     record(ctx, { kind: 'color', value: hex, usedIn: [path] })
   }
 
+  const gradient = fills.find((f) => f.type.startsWith('GRADIENT_'))
+  if (gradient) {
+    const css = toGradient(gradient)
+    if (css) {
+      out.bg = css
+      record(ctx, { kind: 'gradient', value: css, usedIn: [path] })
+    } else {
+      ctx.warnings.push({
+        code: 'unsupported-paint',
+        severity: 'warn',
+        message: `"${node.name}" has a ${node.fills?.find((f) => f.type.startsWith('GRADIENT_'))?.type} fill that could not be read. It will be missing from the component.`,
+        path,
+      })
+    }
+  }
+
+  // Anything left that is neither solid, gradient nor image is a fill we would
+  // otherwise drop without saying so.
+  for (const f of fills) {
+    if (f.type === 'SOLID' || f.type === 'IMAGE' || f.type.startsWith('GRADIENT_')) continue
+    ctx.warnings.push({
+      code: 'unsupported-paint',
+      severity: 'warn',
+      message: `"${node.name}" has a ${f.type} fill, which the IR cannot express yet.`,
+      path,
+    })
+  }
+
   if (node.cornerRadius) {
     const v = `${node.cornerRadius}px`
     out.radius = v
     record(ctx, { kind: 'radius', value: v, usedIn: [path] })
+  }
+
+  // Figma keeps effects outside `fills`, which is exactly why they used to be
+  // dropped: reading fills alone never sees a shadow.
+  const shadows: string[] = []
+  for (const e of node.effects ?? []) {
+    if (e.visible === false) continue
+    if (e.type === 'DROP_SHADOW' || e.type === 'INNER_SHADOW') {
+      shadows.push(toShadow(e))
+    } else {
+      ctx.warnings.push({
+        code: 'unsupported-effect',
+        severity: 'warn',
+        message: `"${node.name}" has a ${e.type} effect, which the IR cannot express yet.`,
+        path,
+      })
+    }
+  }
+  if (shadows.length > 0) {
+    const v = shadows.join(', ')
+    out.shadow = v
+    record(ctx, { kind: 'shadow', value: v, usedIn: [path] })
+  }
+
+  const stroke = (node.strokes ?? []).find((s) => s.visible !== false && s.type === 'SOLID')
+  if (stroke?.color && node.strokeWeight) {
+    const v = `${node.strokeWeight}px solid ${toHex(stroke)}`
+    out.border = v
+    record(ctx, { kind: 'border', value: v, usedIn: [path] })
   }
 
   if (node.style?.fontSize) {
@@ -355,6 +420,58 @@ function toHex(paint: FigmaPaint): string {
   const alpha = (paint.opacity ?? 1) * (c.a ?? 1)
   if (alpha >= 0.999) return `#${hex}`
   return `#${hex}${to255(alpha).toString(16).padStart(2, '0')}`
+}
+
+/**
+ * A Figma gradient becomes a CSS one.
+ *
+ * The angle comes from `gradientHandlePositions`: the first two points are the
+ * start and end of the axis, in coordinates normalized to the node's box. CSS
+ * measures its angle from "up" and clockwise, hence the +90 and the flipped y.
+ * With no handles we fall back to top-to-bottom, which is Figma's own default.
+ */
+function toGradient(paint: FigmaPaint): string | null {
+  const stops = paint.gradientStops
+  if (!stops || stops.length === 0) return null
+
+  const parts = stops.map((s) => {
+    const hex = toHex({ type: 'SOLID', color: s.color, opacity: paint.opacity })
+    return `${hex} ${round(s.position * 100)}%`
+  })
+
+  if (paint.type === 'GRADIENT_RADIAL') return `radial-gradient(${parts.join(', ')})`
+
+  const h = paint.gradientHandlePositions
+  let angle = 180
+  if (h && h.length >= 2) {
+    const dx = h[1]!.x - h[0]!.x
+    const dy = h[1]!.y - h[0]!.y
+    angle = round((Math.atan2(dx, -dy) * 180) / Math.PI)
+    if (angle < 0) angle += 360
+  }
+  return `linear-gradient(${angle}deg, ${parts.join(', ')})`
+}
+
+/** CSS box-shadow. Figma's INNER_SHADOW is CSS's `inset`. */
+function toShadow(e: FigmaEffect): string {
+  const x = round(e.offset?.x ?? 0)
+  const y = round(e.offset?.y ?? 0)
+  const blur = round(e.radius ?? 0)
+  const spread = round(e.spread ?? 0)
+  const color = e.color ? rgba(e.color) : 'rgba(0,0,0,0.25)'
+  const inset = e.type === 'INNER_SHADOW' ? 'inset ' : ''
+  return `${inset}${x}px ${y}px ${blur}px ${spread}px ${color}`
+}
+
+function rgba(c: FigmaColor): string {
+  const to255 = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255)
+  const a = c.a ?? 1
+  return `rgba(${to255(c.r)}, ${to255(c.g)}, ${to255(c.b)}, ${round(a, 2)})`
+}
+
+function round(n: number, decimals = 0): number {
+  const f = 10 ** decimals
+  return Math.round(n * f) / f
 }
 
 export function aspectRatio(w: number, h: number): string {

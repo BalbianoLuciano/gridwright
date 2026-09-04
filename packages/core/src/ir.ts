@@ -91,6 +91,8 @@ export interface IRWarning {
     | 'unsupported-node'
     | 'image-without-fill'
     | 'deep-nesting'
+    | 'unsupported-paint'
+    | 'unsupported-effect'
   message: string
   severity: 'info' | 'warn' | 'error'
   /** Layer path in Figma, e.g. "Hero / Content / Title". */
@@ -116,7 +118,7 @@ export interface IR {
  * project's token system. The `resolve` stage sorts these into exact/near/new.
  */
 export interface RawToken {
-  kind: 'color' | 'spacing' | 'typography' | 'radius' | 'shadow'
+  kind: 'color' | 'gradient' | 'spacing' | 'typography' | 'radius' | 'shadow' | 'border'
   value: string
   /** Where it showed up, so it can be reported. */
   usedIn: string[]

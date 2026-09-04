@@ -185,15 +185,25 @@ async function runDistill(root: string, state: RunState): Promise<void> {
   saveState(root, state)
 }
 
+/**
+ * Errors and warnings are both shown in full; only `info` is collapsed to a
+ * count.
+ *
+ * A dropped gradient is a `warn`, and collapsing it into "3 informational
+ * warnings" hides exactly the thing someone needs to see — the design value
+ * that will be missing from their component.
+ */
 function printWarnings(ir: IR): void {
   if (ir.warnings.length === 0) return
-  const errors = ir.warnings.filter((w) => w.severity === 'error')
-  const rest = ir.warnings.length - errors.length
-  for (const w of errors.slice(0, 5)) {
-    console.log(`    ${yellow('!')} ${w.message}${w.path ? dim(` — ${w.path}`) : ''}`)
+  const loud = ir.warnings.filter((w) => w.severity !== 'info')
+  const quiet = ir.warnings.length - loud.length
+
+  for (const w of loud.slice(0, 8)) {
+    const mark = w.severity === 'error' ? yellow('!') : dim('!')
+    console.log(`    ${mark} ${w.message}${w.path ? dim(` — ${w.path}`) : ''}`)
   }
-  if (errors.length > 5) console.log(dim(`    … and ${errors.length - 5} more high-severity ones`))
-  if (rest > 0) console.log(dim(`    ${rest} informational warnings`))
+  if (loud.length > 8) console.log(dim(`    … and ${loud.length - 8} more`))
+  if (quiet > 0) console.log(dim(`    ${quiet} informational (unnamed layers, deep nesting)`))
 }
 
 /** The protocol. `--json` is what Claude consumes; without the flag it prints

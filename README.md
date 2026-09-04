@@ -6,7 +6,7 @@ Claude Code.
 
 [![license: MIT](https://img.shields.io/badge/license-MIT-16a34a)](LICENSE)
 ![status: phase 1 of 5](https://img.shields.io/badge/status-phase%201%20of%205-2563eb)
-![tests: 52](https://img.shields.io/badge/tests-52%20passing-16a34a)
+![tests: 69](https://img.shields.io/badge/tests-69%20passing-16a34a)
 
 > **The design comes in as a node and leaves as a system.**
 >
@@ -254,7 +254,7 @@ generator with extra steps. The ruler first, then the factory.
 
 ```bash
 pnpm install
-pnpm test        # 52 tests
+pnpm test        # 69 tests
 pnpm typecheck
 pnpm build
 ```
