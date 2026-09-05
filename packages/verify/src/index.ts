@@ -32,6 +32,8 @@ export interface VerifyOptions {
   referencePng?: string
   props?: Record<string, unknown>
   css?: string[]
+  /** How the component exports itself, from the project's own conventions. */
+  exportShape?: string
   viewports: Viewport[]
   weights: Weights
   threshold: number
@@ -56,6 +58,7 @@ export async function verify(opts: VerifyOptions): Promise<VerifyResult> {
     component: opts.component,
     props: opts.props,
     css,
+    ...(opts.exportShape ? { exportShape: opts.exportShape } : {}),
   })
 
   const viewportScores: ViewportScore[] = []

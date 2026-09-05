@@ -11,7 +11,7 @@
  * throws, because a stray harness left in someone's repo looks like their code.
  */
 
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { join, relative, isAbsolute } from 'node:path'
 import { createServer, type ViteDevServer } from 'vite'
 import type { Framework } from '@gridwright/core'
@@ -24,6 +24,16 @@ export interface HarnessOptions {
   component: string
   /** Props passed to the component. Figma copy arrives here as defaults. */
   props?: Record<string, unknown>
+  /**
+   * How the component exports itself: `default`, or `named:Component`.
+   *
+   * The harness assumed `default` and mounted a project whose 38 modules
+   * export a named `Component`. The failure surfaced as an esbuild error about
+   * a missing default export, several layers below where the assumption was
+   * made — and `init` had already detected the right answer and written it to
+   * the config. It just was not being read.
+   */
+  exportShape?: string
   /** Stylesheets to load first, in order. Usually the project's compiled
    *  Tailwind output — without it every utility class is inert and the render
    *  is a column of unstyled text. */
@@ -124,10 +134,17 @@ function entrySource(opts: HarnessOptions, dir: string): string {
     .join('\n')
   const props = JSON.stringify(opts.props ?? {})
 
+  const named = opts.exportShape?.startsWith('named:')
+    ? opts.exportShape.slice('named:'.length)
+    : null
+  const importLine = named
+    ? `import { ${named} as Component } from ${JSON.stringify(componentPath)}`
+    : `import Component from ${JSON.stringify(componentPath)}`
+
   if (opts.framework === 'vue3') {
     return `${cssImports}
 import { createApp } from 'vue'
-import Component from ${JSON.stringify(componentPath)}
+${importLine}
 
 createApp(Component, ${props}).mount('#gw-root')
 `
@@ -136,7 +153,7 @@ createApp(Component, ${props}).mount('#gw-root')
   return `${cssImports}
 import React from 'react'
 import { createRoot } from 'react-dom/client'
-import Component from ${JSON.stringify(componentPath)}
+${importLine}
 
 createRoot(document.getElementById('gw-root')).render(
   React.createElement(Component, ${props}),
@@ -174,22 +191,52 @@ function importPath(from: string, target: string): string {
 }
 
 /**
- * Guesses the project's compiled stylesheet.
+ * Finds the project's stylesheet — the source, not the build output.
  *
- * A component styled with Tailwind renders as unstyled text without it, and
- * every measurement is then wrong in a way that looks like the component's
- * fault. Better to find it automatically and say which one was used.
+ * This one cost a whole run. The harness loaded `styles/theme.css`, a compiled
+ * Tailwind bundle from eight days earlier, and Tailwind only emits the classes
+ * it finds while scanning `content`. A component written today was not in that
+ * scan, so **none** of its classes existed: it rendered as unstyled text and
+ * scored 30% while being correct.
+ *
+ * Nothing about that looks like a failure. The component appears, the words are
+ * there, and every number is wrong.
+ *
+ * So a source file wins over a build output. Vite runs the project's own
+ * postcss config, which means Tailwind rescans `content` and the component
+ * being verified is in it — which is the entire point.
  */
 export function findProjectCss(projectRoot: string): string[] {
   const candidates = [
-    'styles/theme.css', 'styles/global.css',
+    'styles/global.css', 'styles/theme.css',
     'src/style.css', 'src/styles.css', 'src/app.css',
     'src/assets/css/app.css', 'resources/css/app.css',
     'app/globals.css', 'styles/globals.css', 'dist/output.css',
   ]
+
+  const found: Array<{ path: string; source: boolean }> = []
   for (const rel of candidates) {
     const p = join(projectRoot, rel)
-    if (existsSync(p)) return [p]
+    if (!existsSync(p)) continue
+    found.push({ path: p, source: isSourceStylesheet(p) })
   }
-  return []
+  if (found.length === 0) return []
+
+  // Only prefer the source when the project can actually process it.
+  const canCompile = ['postcss.config.js', 'postcss.config.cjs', 'postcss.config.mjs', 'postcss.config.ts']
+    .some((c) => existsSync(join(projectRoot, c)))
+
+  const preferred = canCompile ? found.find((f) => f.source) : undefined
+  return [(preferred ?? found[0]!).path]
+}
+
+/** A stylesheet that still has to be built: it declares Tailwind rather than
+ *  containing its output. */
+function isSourceStylesheet(path: string): boolean {
+  try {
+    const src = readFileSync(path, 'utf8')
+    return /@tailwind\b|@import\s+['"]tailwindcss/.test(src)
+  } catch {
+    return false
+  }
 }

@@ -57,10 +57,18 @@ export async function runVerify(root: string, args: VerifyArgs): Promise<void> {
     warn('No reference image — the perceptual dimension will not be measured.')
   }
 
+  // The shape that matches where this component lives. Assuming `default`
+  // mounted nothing in a project whose modules export a named `Component`.
+  const shape = config.conventions
+    ? (config.conventions.shapes.find((s) => args.component!.startsWith(s.dir))
+       ?? config.conventions.shapes[0])
+    : undefined
+
   const result = await verify({
     projectRoot: root,
     framework: config.framework,
     component,
+    ...(shape ? { exportShape: shape.export } : {}),
     measurements: design.measurements,
     referencePng: design.reference,
     props,
