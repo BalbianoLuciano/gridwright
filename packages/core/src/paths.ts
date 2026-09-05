@@ -29,6 +29,10 @@ export const paths = {
   // baselines lives outside runs/ precisely because it outlives the run
   baselines: (r: string) => join(r, GW_DIR, 'baselines'),
   dashboard: (r: string) => join(r, GW_DIR, 'dashboard'),
+  /** Screenshots and diffs from the last `gw verify`. Scaffolding: they are
+   *  replaced on every run, and the ones worth keeping are copied to
+   *  `baselines/` by `golden`. */
+  verify: (r: string) => join(r, GW_DIR, 'verify'),
 }
 
 /**
@@ -42,8 +46,10 @@ export const paths = {
 export function gitignoreBlock(prefix = ''): string {
   const at = prefix ? `${prefix.replace(/\/+$/, '')}/` : ''
   return `
-# gridwright — runs and dashboard are scaffolding; baselines are tests
+# gridwright — everything here is scaffolding except baselines, which are tests
 ${at}${GW_DIR}/runs/
 ${at}${GW_DIR}/dashboard/
+${at}${GW_DIR}/verify/
+${at}${GW_DIR}/harness/
 `
 }
