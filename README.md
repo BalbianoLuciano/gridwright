@@ -421,9 +421,9 @@ follows `var()`, converts `oklch()` to the hex a design is compared in, works
 out `calc(var(--spacing) * 4)`, and takes the installed `tailwindcss/theme.css`
 as the framework's scale. On the [Launch UI page](#a-whole-page), 65 of its 80
 values were already in the system — before, a stock Vite + shadcn project could
-not match a single colour. What is approved is written into `@theme`, in the namespace a
-utility reads (`--color-*`, `--radius-*`, `--shadow-*`), so `bg-brand-600`
-works the moment the name exists.
+not match a single colour. What is approved is written into `@theme`, in the
+namespace a utility reads (`--color-*`, `--radius-*`, `--shadow-*`), so
+`bg-brand-600` works the moment the name exists.
 
 Type resolves on all three parts, not the size alone. One project has
 `fontSize.h6` at 20/24/700 and `fontSize.paragraph-lg` at 20/24/400; matching
@@ -586,11 +586,12 @@ project from one command:
 gw build --view "<the page's link>"
 ```
 
-gridwright found the twelve sections, twelve sub-agents built them side by side,
-and the view composed them. The whole page scores **98.54% at 1440**. Of the 80
-values it brings, 65 were already in the system — 38 project tokens and 513
-from Tailwind's installed theme — 7 were close enough to use the system's, and 8
-needed names, asked once for the whole page.
+gridwright found the twelve sections and handed them out, one sub-agent each:
+eleven built side by side, and the twelfth once distill's tolerance was raised
+(below). The view composed them, and the whole page scores **98.54% at 1440**.
+Of the 80 values it brings, 65 already had something to match — the project's 38
+tokens and the 513 of Tailwind's installed theme — 7 were close enough to use
+the system's, and 8 needed names, asked once for the whole page.
 
 | Section | Kind | At 1440 | structural · chromatic · perceptual |
 |---|---|---|---|
