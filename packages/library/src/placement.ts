@@ -21,6 +21,7 @@
 
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { folderComponent } from './files.js'
 
 /**
  * What kind of thing a design node becomes.
@@ -174,7 +175,8 @@ function walk(root: string, rel: string, depth: number, max: number): string[] {
 }
 
 /**
- * Source files, one level deep plus `<Name>/index.*`.
+ * Source files, one level deep plus the folder-per-component spellings that
+ * `files.ts` defines.
  *
  * Deliberately not "component-looking". The first cut required PascalCase and
  * a React extension, and missed a project whose `templates/pages`,
@@ -200,9 +202,12 @@ function countFiles(root: string, dir: string): number {
       const stat = statSync(abs)
       if (stat.isFile()) {
         if (SOURCE_FILE.test(entry)) n++
-      } else if (stat.isDirectory() && /^[A-Z]/.test(entry)) {
-        if (['index.tsx', 'index.jsx', 'index.vue', 'index.svelte', 'index.ts'].some(
-          (f) => existsSync(join(abs, f)))) n++
+      } else if (stat.isDirectory() && folderComponent(join(root, dir), entry)) {
+        // `<Name>/<Name>.*` as well as `<Name>/index.*`, in both spellings.
+        // With only the first, a `src/modules` full of `Intro/Intro.tsx`
+        // counted as empty and a second modules directory was proposed beside
+        // the real one; `hero-banner/hero-banner.vue` is the same convention.
+        n++
       }
     } catch {
       continue

@@ -12,6 +12,21 @@ describe('config — Law 9', () => {
     expect(validateConfig(c)[0]).toMatch(/add up to 1/)
   })
 
+  // The message that mentions `verify.css` invites hand-editing it, and a
+  // string instead of an array iterated per character: "names a stylesheet
+  // that does not exist: s, r, c, /, m, a, i, n…".
+  it('rejects a verify.css that is not a list of paths', () => {
+    const c = structuredClone(DEFAULT_CONFIG)
+    ;(c.verify as { css?: unknown }).css = 'src/main.css'
+    expect(validateConfig(c)[0]).toMatch(/list of paths/)
+
+    c.verify.css = ['src/main.css', '  ']
+    expect(validateConfig(c)[0]).toMatch(/not a path/)
+
+    c.verify.css = ['src/main.css']
+    expect(validateConfig(c)).toEqual([])
+  })
+
   it('structural carries half: it is the only dimension without rendering noise', () => {
     expect(DEFAULT_CONFIG.verify.weights.structural).toBe(0.5)
   })

@@ -17,7 +17,7 @@ import {
   type Measurements, type GridwrightConfig, type RunState,
 } from '@gridwright/core'
 import { FigmaClient, FigmaError, parseFigmaUrl, distill } from '@gridwright/figma'
-import { verify, explain } from '@gridwright/verify'
+import { verify, explain, resolveProjectCss } from '@gridwright/verify'
 import { ok, fail, info, warn, step, dim, bold, green, yellow, red, missingCredentials } from '../ui.js'
 
 export interface VerifyArgs {
@@ -58,6 +58,29 @@ export async function runVerify(root: string, args: VerifyArgs): Promise<void> {
   const component = isAbsolute(componentArg) ? componentArg : resolvePath(root, componentArg)
   if (!existsSync(component)) fail(`No such component: ${component}`)
 
+  // Before the design is fetched: a typo in `verify.css` used to cost a whole
+  // download and a distill before it was reported.
+  const { css, missing, stale } = resolveProjectCss(root, config.verify.css)
+  if (missing.length > 0) {
+    fail(
+      `verify.css names a stylesheet that does not exist: ${missing.join(', ')}`,
+      'Paths in gridwright.config.json are relative to the project root.',
+    )
+  }
+  if (css.length === 0) {
+    // Said out loud: without a stylesheet every utility class is inert, the
+    // component renders as unstyled text, and the score that comes out looks
+    // like a bad component rather than a missing file.
+    warn('No stylesheet found — the component will render unstyled and the score will not mean much.')
+    console.log(dim('  Name it in gridwright.config.json: "verify": { "css": ["src/main.css"] }'))
+  }
+  if (stale.length > 0) {
+    // A build output only holds the classes that existed when it was built.
+    warn(`verify.css points at a build output: ${stale.join(', ')}`)
+    console.log(dim('  It holds the classes that existed when it was built, so a component'))
+    console.log(dim('  written since renders unstyled. Name the source stylesheet instead.'))
+  }
+
   const design = args.figma
     ? await designFromFigma(root, config, args.figma)
     : designFromRun(root, open)
@@ -82,6 +105,7 @@ export async function runVerify(root: string, args: VerifyArgs): Promise<void> {
     projectRoot: root,
     framework: config.framework,
     component,
+    css,
     ...(shape ? { exportShape: shape.export } : {}),
     // Its own harness directory. The shared one is deleted when a harness
     // starts and when it closes, so sections verifying at the same time took

@@ -50,6 +50,17 @@ export async function init(root: string, opts: { force?: boolean; yes?: boolean 
   // is how a header ends up filed as a page module.
   conventions.placements = await setupPlacements(conventions.placements, opts.yes ?? false)
 
+  // Read the shapes again from the directories that are actually going into
+  // the config. A person who picks `templates/partials` over the detected
+  // `templates/layouts` was leaving the config with a shape for the directory
+  // they turned down and none for the one they chose — and a missing shape is
+  // how the harness ends up mounting `default` in a project that exports a name.
+  if (conventions.placements.some((p) => p.from === 'asked')) {
+    const settled = detectConventions(root, conventions.placements)
+    conventions.shapes = settled.shapes
+    conventions.importExtension = settled.importExtension
+  }
+
   if (conventions.shapes.length > 0 || conventions.docs.length > 0 || conventions.placements.length > 0) {
     config.conventions = conventions
   }

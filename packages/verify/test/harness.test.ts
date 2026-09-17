@@ -3,7 +3,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  findProjectCss, projectDependsOn, resolveProjectModule, tailwindSourceStylesheet, viteConfig,
+  findProjectCss, resolveProjectCss, harnessFsAllow, projectDependsOn, resolveProjectModule,
+  tailwindSourceStylesheet, viteConfig,
 } from '../src/harness.js'
 
 let root: string
@@ -81,6 +82,61 @@ describe('rendering a Vite 8 + Tailwind v4 project', () => {
     file('src/index.css', '@import "tailwindcss";\n')
     file('dist/output.css', '.p-4{padding:1rem}\n')
     expect(findProjectCss(root)).toEqual([join(root, 'src/index.css')])
+  })
+
+  // A Vite + Tailwind 3 project whose stylesheet is `src/main.css`. No name on
+  // the list matched, so the harness loaded nothing and a correct component
+  // rendered as unstyled text.
+  it('finds src/main.css', () => {
+    packageJson({})
+    file('postcss.config.js', 'export default {}\n')
+    file('src/main.css', '@tailwind base;\n')
+    expect(findProjectCss(root)).toEqual([join(root, 'src/main.css')])
+  })
+
+  it('takes the stylesheets the config names over the search', () => {
+    file('src/index.css', '@tailwind base;\n')
+    file('src/theme/site.css', '@tailwind base;\n')
+    expect(resolveProjectCss(root, ['src/theme/site.css']))
+      .toEqual({ css: [join(root, 'src/theme/site.css')], missing: [], stale: [] })
+    expect(resolveProjectCss(root)).toEqual({ css: [join(root, 'src/index.css')], missing: [], stale: [] })
+  })
+
+  // Naming a path skips the search, and with it the rule the search is there
+  // to enforce. A build output holds the classes that existed when it was
+  // built, which is the run that scored 30% on a correct component.
+  it('says so when a configured stylesheet is a build output it could compile itself', () => {
+    packageJson({})
+    file('postcss.config.js', 'export default {}\n')
+    file('src/index.css', '@tailwind base;\n')
+    file('dist/output.css', '.px-4 { padding: 1rem }\n')
+
+    expect(resolveProjectCss(root, ['dist/output.css']))
+      .toEqual({ css: [join(root, 'dist/output.css')], missing: [], stale: ['dist/output.css'] })
+
+    // Nothing to compile it with: the build output is the only stylesheet
+    // there is, and preferring a source would render nothing at all.
+    const bare = mkdtempSync(join(tmpdir(), 'gw-bare-'))
+    mkdirSync(join(bare, 'dist'), { recursive: true })
+    writeFileSync(join(bare, 'dist/output.css'), '.px-4 { padding: 1rem }\n')
+    expect(resolveProjectCss(bare, ['dist/output.css']).stale).toEqual([])
+    rmSync(bare, { recursive: true, force: true })
+  })
+
+  // Falling back to the search would hide the typo behind a plausible render.
+  it('reports a configured stylesheet that is not there instead of searching', () => {
+    file('src/index.css', '@tailwind base;\n')
+    expect(resolveProjectCss(root, ['src/mian.css']))
+      .toEqual({ css: [], missing: ['src/mian.css'], stale: [] })
+  })
+
+  // Vite serves what it is allowed to read. A sheet outside the project got a
+  // 403 and the page came back blank — a worse failure than the one the
+  // config field exists to prevent.
+  it('lets Vite read a stylesheet that lives outside the project', () => {
+    const outside = join(root, '..', 'shared', 'base.css')
+    expect(harnessFsAllow(root, [outside])).toContain(join(root, '..', 'shared'))
+    expect(harnessFsAllow(root, [])).toEqual([root])
   })
 
   it('still prefers a build output when nothing can compile the source', () => {

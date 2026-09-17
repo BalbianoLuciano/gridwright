@@ -19,6 +19,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, extname, join, relative, resolve } from 'node:path'
 import { detectPlacements, type Placement } from './placement.js'
+import { folderComponent } from './files.js'
 
 export interface ComponentShape {
   /** Where this kind of component lives, relative to the project root. */
@@ -80,10 +81,30 @@ const DOC_CANDIDATES = [
   'docs/patterns', '.cursorrules',
 ]
 
-export function detectConventions(root: string): Conventions {
+/**
+ * How this project writes components, and where it puts them.
+ *
+ * `placements` is taken rather than detected when the person has already been
+ * asked. `init` lets them pick a runner-up or type a path, and the shapes used
+ * to be read from what detection guessed instead: choosing `templates/partials`
+ * over `templates/layouts` left the config with a shape for the directory that
+ * was turned down, and none for the one being written to — so `verify` found no
+ * match, omitted the export shape, and the harness mounted `default` in a
+ * project whose components export a name.
+ */
+export function detectConventions(root: string, settled?: Placement[]): Conventions {
   const shapes: ComponentShape[] = []
+  const placements = settled ?? detectPlacements(root)
 
-  for (const dir of CANDIDATE_DIRS) {
+  // The fixed list alone missed a Vite project that keeps its modules in
+  // `src/modules`: placement detection found the directory, and the shape of
+  // the files in it was never read, so `author` was handed no example at all.
+  // Views stay out: a `pages` directory is usually the fullest one in the
+  // project, and the most populated shape is the fallback for everything else.
+  const dirs = new Set(CANDIDATE_DIRS)
+  for (const p of placements) if (p.from !== 'absent' && p.kind !== 'view') dirs.add(p.dir)
+
+  for (const dir of dirs) {
     const abs = join(root, dir)
     if (!existsSync(abs)) continue
     const shape = inferShape(root, dir)
@@ -96,7 +117,7 @@ export function detectConventions(root: string): Conventions {
     shapes: sorted,
     breakpoints: findBreakpoints(root),
     importExtension: detectImportExtension(root, sorted),
-    placements: detectPlacements(root),
+    placements,
     docs: findDocs(root),
   }
 }
@@ -170,12 +191,14 @@ function inferShape(root: string, dir: string): ComponentShape | null {
     const source = safeRead(file)
     if (!source) continue
 
-    layouts.set(...bump(layouts, basename(file) === `index${extname(file)}`
-      ? `{Name}/index${extname(file)}`
-      : `{Name}${extname(file)}`))
+    layouts.set(...bump(layouts, layoutOf(abs, file)))
 
     const named = source.match(/^export\s+(?:async\s+)?function\s+(\w+)/m)
-    const isDefault = /^export\s+default\s/m.test(source)
+    // A single-file component is a default export by construction: `<script
+    // setup>` writes no export line at all, so a directory of `.vue` files
+    // came back `unknown` and taught nothing — the whole directory had no
+    // shape, which is the same hole as a directory that was never read.
+    const isDefault = /^export\s+default\s/m.test(source) || /\.(vue|svelte)$/.test(file)
     exports.set(...bump(exports, isDefault ? 'default' : named ? `named:${named[1]}` : 'unknown'))
 
     // Anything else the file exports at the top level. A shape is not only its
@@ -206,8 +229,23 @@ function inferShape(root: string, dir: string): ComponentShape | null {
   }
 }
 
-/** One level deep plus `<Name>/index.*`. Components nested deeper than that
- *  are someone's private helpers, not the shape of the directory. */
+/**
+ * How a component's file sits in its directory: `{Name}.tsx`,
+ * `{Name}/index.tsx`, or `{Name}/{Name}.tsx`.
+ *
+ * The third was missing. A folder per module holding `Intro/Intro.tsx` beside
+ * its demo is as common as the `index` spelling, and not knowing it made the
+ * whole directory look empty.
+ */
+function layoutOf(dir: string, file: string): string {
+  const ext = extname(file)
+  if (dirname(file) === dir) return `{Name}${ext}`
+  return basename(file) === `index${ext}` ? `{Name}/index${ext}` : `{Name}/{Name}${ext}`
+}
+
+/** One level deep plus the folder-per-component spellings from `files.ts`.
+ *  Components nested deeper than that are someone's private helpers, not the
+ *  shape of the directory. */
 function componentFiles(dir: string): string[] {
   const out: string[] = []
   let entries: string[]
@@ -229,23 +267,24 @@ function componentFiles(dir: string): string[] {
 
     if (stat.isFile() && isComponentFile(entry)) {
       out.push(full)
-    } else if (stat.isDirectory() && /^[A-Z]/.test(entry)) {
-      for (const inner of ['index.tsx', 'index.jsx', 'index.vue', 'index.ts']) {
-        if (existsSync(join(full, inner))) {
-          out.push(join(full, inner))
-          break
-        }
-      }
+    } else if (stat.isDirectory()) {
+      const inner = folderComponent(dir, entry)
+      if (inner) out.push(inner)
     }
   }
   return out
 }
 
 function isComponentFile(name: string): boolean {
-  if (!/\.(tsx|jsx|vue)$/.test(name)) return false
-  const base = basename(name, extname(name))
+  const ext = extname(name)
+  if (!/\.(tsx|jsx|vue|svelte)$/.test(name)) return false
+  const base = basename(name, ext)
   // Barrels and helpers are not components and would skew every count.
-  return /^[A-Z]/.test(base) && !/^(index|types|utils|helpers|constants)$/i.test(base)
+  if (/^(index|types|utils|helpers|constants)$/i.test(base)) return false
+  // PascalCase, or kebab-case for a single-file component: `hero-banner.vue`
+  // is how Vue and Nuxt spell it. A lowercase `.tsx` is a helper or a demo,
+  // never a component, so that one stays PascalCase-only.
+  return /^[A-Z]/.test(base) || (/^\.(vue|svelte)$/.test(ext) && /^[a-z][a-z0-9-]*$/.test(base))
 }
 
 /**
@@ -300,7 +339,8 @@ export function shapeFor(conventions: Conventions, dir: string): ComponentShape 
 
 /** Where a component of this shape goes, and under what name. */
 export function pathFor(shape: ComponentShape, name: string): string {
-  return join(shape.dir, shape.file.replace('{Name}', name))
+  // Every occurrence: `{Name}/{Name}.tsx` names the folder and the file.
+  return join(shape.dir, shape.file.replaceAll('{Name}', name))
 }
 
 function bump(map: Map<string, number>, key: string): [string, number] {

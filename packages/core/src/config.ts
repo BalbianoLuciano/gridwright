@@ -88,6 +88,10 @@ export interface GridwrightConfig {
   }
   verify: {
     viewports: Viewport[]
+    /** The stylesheets to render with, relative to the project root, in load
+     *  order. Leave it out and `verify` looks for one under the usual names;
+     *  set it when the project calls its stylesheet something else. */
+    css?: string[]
     /** Law 6. The weights add up to 1. Structural carries half because it is
      *  the only dimension without rendering noise. */
     weights: { structural: number; chromatic: number; perceptual: number }
@@ -184,6 +188,16 @@ export function validateConfig(c: GridwrightConfig): string[] {
   }
   if (c.verify.maxRefineIterations < 1) {
     errors.push('verify.maxRefineIterations has to be at least 1')
+  }
+  // Hand-edited, because the message that mentions it invites exactly that. A
+  // string instead of an array iterates per character, and the run aborted
+  // with "verify.css names a stylesheet that does not exist: s, r, c, /, m…".
+  if (c.verify.css !== undefined) {
+    if (!Array.isArray(c.verify.css)) {
+      errors.push('verify.css has to be a list of paths: "css": ["src/main.css"]')
+    } else if (c.verify.css.some((p) => typeof p !== 'string' || p.trim() === '')) {
+      errors.push('verify.css has an entry that is not a path')
+    }
   }
   return errors
 }

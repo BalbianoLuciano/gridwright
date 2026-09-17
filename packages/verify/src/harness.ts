@@ -82,8 +82,13 @@ export async function startHarness(opts: HarnessOptions): Promise<Harness> {
         port: opts.port ?? 0,   // 0 lets the OS pick, so parallel runs do not collide
         strictPort: false,
         host: '127.0.0.1',
-        // The component and its CSS live above the harness root.
-        fs: { allow: [opts.projectRoot] },
+        // The component and its CSS live above the harness root. A stylesheet
+        // the config names can live outside it altogether — a monorepo pointing
+        // at `../../packages/ui/base.css` got a 403, the entry module failed to
+        // load, and the page came back blank: scored as a component that
+        // rendered nothing, which is worse than the unstyled render `verify.css`
+        // exists to prevent.
+        fs: { allow: harnessFsAllow(opts.projectRoot, opts.css ?? []) },
       },
     })
     await server.listen()
@@ -204,6 +209,13 @@ export default defineConfig({
 `
 }
 
+/** The project, plus wherever the stylesheets it named actually live. */
+export function harnessFsAllow(projectRoot: string, css: string[]): string[] {
+  const allow = new Set([projectRoot])
+  for (const sheet of css) allow.add(dirname(isAbsolute(sheet) ? sheet : join(projectRoot, sheet)))
+  return [...allow]
+}
+
 /** Vite wants a relative specifier or an absolute path it can serve. */
 function importPath(from: string, target: string): string {
   if (!isAbsolute(target)) return target
@@ -232,7 +244,9 @@ export function findProjectCss(projectRoot: string): string[] {
     'styles/global.css', 'styles/theme.css',
     // src/index.css is where Vite's React template puts it, and where shadcn's
     // init writes its theme.
-    'src/style.css', 'src/styles.css', 'src/app.css', 'src/index.css',
+    // src/main.css is the other common spelling: the stylesheet named after
+    // the `main.tsx` that imports it.
+    'src/style.css', 'src/styles.css', 'src/app.css', 'src/index.css', 'src/main.css',
     'src/assets/css/app.css', 'resources/css/app.css',
     'app/globals.css', 'styles/globals.css', 'dist/output.css',
   ]
@@ -245,14 +259,66 @@ export function findProjectCss(projectRoot: string): string[] {
   }
   if (found.length === 0) return []
 
-  // Only prefer the source when the project can actually process it: a postcss
-  // config, or Tailwind v4's Vite plugin, which `viteConfig` loads.
-  const canCompile = ['postcss.config.js', 'postcss.config.cjs', 'postcss.config.mjs', 'postcss.config.ts']
+  const preferred = canCompileCss(projectRoot) ? found.find((f) => f.source) : undefined
+  return [(preferred ?? found[0]!).path]
+}
+
+/**
+ * Whether the project can turn a source stylesheet into CSS on its own: a
+ * postcss config, or Tailwind v4's Vite plugin, which `viteConfig` loads.
+ *
+ * Without one, a build output is the only stylesheet there is and preferring
+ * the source would render nothing at all.
+ */
+export function canCompileCss(projectRoot: string): boolean {
+  return ['postcss.config.js', 'postcss.config.cjs', 'postcss.config.mjs', 'postcss.config.ts']
     .some((c) => existsSync(join(projectRoot, c)))
     || projectDependsOn(projectRoot, '@tailwindcss/vite')
+}
 
-  const preferred = canCompile ? found.find((f) => f.source) : undefined
-  return [(preferred ?? found[0]!).path]
+/**
+ * The stylesheets to render with: the ones the project names, or the search.
+ *
+ * The search is a fixed list of names, and a project is free to call its
+ * stylesheet anything. One that called it `src/main.css` rendered every
+ * component as unstyled text — nothing failed, the score was simply wrong — and
+ * the only way out was to add a file under a name the list knew. `verify.css`
+ * in the config is that way out, and it is data (Law 9).
+ *
+ * A configured path that does not exist comes back in `missing` rather than
+ * being skipped: falling through to the search would hide a typo behind a
+ * plausible render.
+ *
+ * `stale` is the other half of that. Naming a path skips the search, and with
+ * it the rule the search exists to enforce — a build output is a snapshot of
+ * the classes that existed when it was built, so a component written today
+ * renders unstyled and scores 30% while being correct. Pointing `verify.css`
+ * at `dist/output.css` is a plausible thing to do, so it is said out loud
+ * rather than refused: the project may have a reason, and it may also have a
+ * source file that would have been compiled on the spot.
+ */
+export function resolveProjectCss(
+  projectRoot: string,
+  configured?: string[],
+): { css: string[]; missing: string[]; stale: string[] } {
+  if (!configured || configured.length === 0) {
+    return { css: findProjectCss(projectRoot), missing: [], stale: [] }
+  }
+
+  const css: string[] = []
+  const missing: string[] = []
+  const stale: string[] = []
+  const canCompile = canCompileCss(projectRoot)
+  for (const rel of configured) {
+    const abs = isAbsolute(rel) ? rel : join(projectRoot, rel)
+    if (!existsSync(abs)) {
+      missing.push(rel)
+      continue
+    }
+    css.push(abs)
+    if (canCompile && !isSourceStylesheet(abs)) stale.push(rel)
+  }
+  return { css, missing, stale }
 }
 
 /** A stylesheet that still has to be built: it declares Tailwind rather than
