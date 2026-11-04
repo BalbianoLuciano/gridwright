@@ -5,7 +5,7 @@ component comes out, registered in the project's design system. Point it at a
 whole page and it builds the page, section by section. Driven from Claude Code.
 
 [![license: MIT](https://img.shields.io/badge/license-MIT-16a34a)](LICENSE)
-![tests: 262](https://img.shields.io/badge/tests-262%20passing-16a34a)
+![tests: 328](https://img.shields.io/badge/tests-328%20passing-16a34a)
 
 > **The design comes in as a node and leaves as a system.**
 >
@@ -663,7 +663,7 @@ fails your build has done something worse than nothing.
 
 ```bash
 pnpm install
-pnpm test        # 262 tests
+pnpm test        # 328 tests
 pnpm typecheck
 pnpm build
 ```
