@@ -70,6 +70,55 @@ describe('library:register', () => {
     expect(barrel).toContain("export { default as ValuePropositionCard } from './ValuePropositionCard'")
   })
 
+  // Vite resolves `.vue` only when the specifier spells it out, and a project
+  // that imports its components through an alias never writes `./X.vue`, so
+  // detection finds nothing and `importExtension` is ''. The barrel then
+  // exported './button/Button' and the dev server failed in the consumer.
+  describe('single-file components keep their extension in the barrel', () => {
+    const sfc = (name: string, file: string) => {
+      const dir = join(root, 'src/components/ui', name)
+      mkdirSync(dir, { recursive: true })
+      const path = join(dir, file)
+      writeFileSync(path, '<template><div /></template>\n')
+      return path
+    }
+    const barrelOf = () => readFileSync(join(root, 'src/components/ui/index.ts'), 'utf8')
+
+    it.each(['', '.js'])('.vue with importExtension %j', (importExtension) => {
+      config = { ...config, conventions: { ...config.conventions, importExtension } as GridwrightConfig['conventions'] }
+      ensureLibrary(root, config)
+      registerComponent(root, config, {
+        name: 'Button', componentPath: sfc('button', 'Button.vue'), figma, props: [], tokens: [],
+      })
+      expect(barrelOf()).toContain("export { default as Button } from './button/Button.vue'")
+    })
+
+    it('an index.vue is not collapsed to its directory', () => {
+      config = { ...config, conventions: { ...config.conventions, importExtension: '' } as GridwrightConfig['conventions'] }
+      ensureLibrary(root, config)
+      registerComponent(root, config, {
+        name: 'Card', componentPath: sfc('card', 'index.vue'), figma, props: [], tokens: [],
+      })
+      expect(barrelOf()).toContain("from './card/index.vue'")
+    })
+
+    it('.svelte keeps its extension too', () => {
+      ensureLibrary(root, config)
+      registerComponent(root, config, {
+        name: 'Tag', componentPath: sfc('tag', 'Tag.svelte'), figma, props: [], tokens: [],
+      })
+      expect(barrelOf()).toContain("from './tag/Tag.svelte'")
+    })
+
+    it('registering the same .vue twice exports it once', () => {
+      ensureLibrary(root, config)
+      const path = sfc('button', 'Button.vue')
+      registerComponent(root, config, { name: 'Button', componentPath: path, figma, props: [], tokens: [] })
+      registerComponent(root, config, { name: 'Button', componentPath: path, figma, props: [], tokens: [] })
+      expect(barrelOf().match(/Button\.vue/g)).toHaveLength(1)
+    })
+  })
+
   /**
    * The reason the hash is in there at all. Without it you end up with
    * HeroAboutUs, HeroAboutUs2 and HeroAboutUsNew two months in, and no way to

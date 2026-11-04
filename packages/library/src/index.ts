@@ -187,14 +187,22 @@ function addToBarrel(
   const barrel = join(root, config.library.barrel)
   const current = existsSync(barrel) ? readFileSync(barrel, 'utf8') : ''
 
-  const ext = config.conventions?.importExtension ?? ''
+  // A single-file component is not a module TypeScript or Node resolves, so
+  // the bundler needs the real extension in the specifier. Detection only
+  // counts `./X` imports, and a Vue project importing through an alias has none:
+  // the convention came back '' and the barrel exported './button/Button', which
+  // Vite does not resolve. The convention only speaks for `.ts`/`.tsx`.
+  const file = extname(componentPath)
+  const keepsExtension = file === '.vue' || file === '.svelte'
+  const ext = keepsExtension ? '' : (config.conventions?.importExtension ?? '')
 
   let spec = relative(dirname(barrel), componentPath).replace(/\\/g, '/')
-  spec = spec.replace(new RegExp(`${extname(spec)}$`), '')
+  if (!keepsExtension) spec = spec.slice(0, spec.length - file.length)
   // An index file is imported by its directory — but only where a bare
   // specifier compiles. Under `moduleResolution: node16` a directory is not
   // resolvable and the extension is mandatory, so the path stays complete.
-  if (ext === '') spec = spec.replace(/\/index$/, '')
+  // Never for a single-file component: `./card` would not find `card/index.vue`.
+  if (ext === '' && !keepsExtension) spec = spec.replace(/\/index$/, '')
   if (!spec.startsWith('.')) spec = `./${spec}`
   spec += ext
 
