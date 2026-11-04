@@ -70,6 +70,92 @@ describe('library:register', () => {
     expect(barrel).toContain("export { default as ValuePropositionCard } from './ValuePropositionCard'")
   })
 
+  // Vite resolves `.vue` only when the specifier spells it out, and a project
+  // that imports its components through an alias never writes `./X.vue`, so
+  // detection finds nothing and `importExtension` is ''. The barrel then
+  // exported './button/Button' and the dev server failed in the consumer.
+  describe('single-file components keep their extension in the barrel', () => {
+    const sfc = (name: string, file: string) => {
+      const dir = join(root, 'src/components/ui', name)
+      mkdirSync(dir, { recursive: true })
+      const path = join(dir, file)
+      writeFileSync(path, '<template><div /></template>\n')
+      return path
+    }
+    const barrelOf = () => readFileSync(join(root, 'src/components/ui/index.ts'), 'utf8')
+
+    it.each(['', '.js'])('.vue with importExtension %j', (importExtension) => {
+      config = { ...config, conventions: { ...config.conventions, importExtension } as GridwrightConfig['conventions'] }
+      ensureLibrary(root, config)
+      registerComponent(root, config, {
+        name: 'Button', componentPath: sfc('button', 'Button.vue'), figma, props: [], tokens: [],
+      })
+      expect(barrelOf()).toContain("export { default as Button } from './button/Button.vue'")
+    })
+
+    it('an index.vue is not collapsed to its directory', () => {
+      config = { ...config, conventions: { ...config.conventions, importExtension: '' } as GridwrightConfig['conventions'] }
+      ensureLibrary(root, config)
+      registerComponent(root, config, {
+        name: 'Card', componentPath: sfc('card', 'index.vue'), figma, props: [], tokens: [],
+      })
+      expect(barrelOf()).toContain("from './card/index.vue'")
+    })
+
+    it('.svelte keeps its extension too', () => {
+      ensureLibrary(root, config)
+      registerComponent(root, config, {
+        name: 'Tag', componentPath: sfc('tag', 'Tag.svelte'), figma, props: [], tokens: [],
+      })
+      expect(barrelOf()).toContain("from './tag/Tag.svelte'")
+    })
+
+    it('registering the same .vue twice exports it once', () => {
+      ensureLibrary(root, config)
+      const path = sfc('button', 'Button.vue')
+      registerComponent(root, config, { name: 'Button', componentPath: path, figma, props: [], tokens: [] })
+      registerComponent(root, config, { name: 'Button', componentPath: path, figma, props: [], tokens: [] })
+      expect(barrelOf().match(/Button\.vue/g)).toHaveLength(1)
+    })
+
+    /**
+     * The upgrade path. Every Vue project that registered a component with the
+     * release before this fix has `from './button/Button'` in its barrel. The
+     * dedupe compared the whole specifier, so the new `.vue` spelling did not
+     * match it and was appended: two `export { default as Button }` lines, which
+     * TypeScript and esbuild both reject. The barrel this PR fixes stopped
+     * parsing on the first re-register.
+     */
+    it('corrects the extensionless line an earlier release wrote', () => {
+      ensureLibrary(root, config)
+      const barrel = join(root, 'src/components/ui/index.ts')
+      writeFileSync(barrel, `export { default as Button } from './button/Button'\n`)
+
+      registerComponent(root, config, {
+        name: 'Button', componentPath: sfc('button', 'Button.vue'), figma, props: [], tokens: [],
+      })
+
+      expect(barrelOf().match(/as Button\b/g)).toHaveLength(1)
+      expect(barrelOf()).toContain("from './button/Button.vue'")
+    })
+
+    // A barrel the project wrote by hand can export several names from one
+    // line. Replacing that line to correct the path would drop the others, so
+    // a name already exported is left exactly as it is.
+    it('leaves a hand-written line that exports more than this name', () => {
+      ensureLibrary(root, config)
+      const barrel = join(root, 'src/components/ui/index.ts')
+      const hand = `export { Button, ButtonGroup } from './button'\n`
+      writeFileSync(barrel, hand)
+
+      registerComponent(root, config, {
+        name: 'Button', componentPath: sfc('button', 'Button.vue'), figma, props: [], tokens: [],
+      })
+
+      expect(barrelOf()).toBe(hand)
+    })
+  })
+
   /**
    * The reason the hash is in there at all. Without it you end up with
    * HeroAboutUs, HeroAboutUs2 and HeroAboutUsNew two months in, and no way to

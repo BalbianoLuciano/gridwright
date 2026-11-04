@@ -15,6 +15,16 @@ import { join } from 'node:path'
 
 export const COMPONENT_EXTENSIONS = ['tsx', 'jsx', 'vue', 'svelte'] as const
 
+/**
+ * A component that is one file rather than a module a bundler resolves on its
+ * own. The list was written out in four places — `addToBarrel`, `inferShape`,
+ * `isComponentFile` and the import detector — and the barrel kept the
+ * extension while the detector did not even know which files had one.
+ */
+export function isSingleFileComponent(file: string): boolean {
+  return /\.(vue|svelte)$/.test(file)
+}
+
 const PASCAL = /^[A-Z][A-Za-z0-9]*$/
 /** `hero-banner`, the same convention in the spelling Vue and Nuxt use. */
 const KEBAB = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
