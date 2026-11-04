@@ -85,14 +85,18 @@ const DOC_CANDIDATES = [
  * How this project writes components, and where it puts them.
  *
  * `placements` is taken rather than detected when the person has already been
- * asked. `init` lets them pick a runner-up or type a path, and the shapes used
+ * asked, and `alsoRead` names directories to read beyond the fixed list. `init` lets them pick a runner-up or type a path, and the shapes used
  * to be read from what detection guessed instead: choosing `templates/partials`
  * over `templates/layouts` left the config with a shape for the directory that
  * was turned down, and none for the one being written to — so `verify` found no
  * match, omitted the export shape, and the harness mounted `default` in a
  * project whose components export a name.
  */
-export function detectConventions(root: string, settled?: Placement[]): Conventions {
+export function detectConventions(
+  root: string,
+  settled?: Placement[],
+  alsoRead: string[] = [],
+): Conventions {
   const shapes: ComponentShape[] = []
   const placements = settled ?? detectPlacements(root)
 
@@ -103,6 +107,10 @@ export function detectConventions(root: string, settled?: Placement[]): Conventi
   // project, and the most populated shape is the fallback for everything else.
   const dirs = new Set(CANDIDATE_DIRS)
   for (const p of placements) if (p.from !== 'absent' && p.kind !== 'view') dirs.add(p.dir)
+  // `gw init --library` names a directory that no fixed list and no placement
+  // knows — a Laravel module's own pattern library, say. Without it the config
+  // carried a library directory with no shape for it.
+  for (const dir of alsoRead) dirs.add(dir)
 
   for (const dir of dirs) {
     const abs = join(root, dir)

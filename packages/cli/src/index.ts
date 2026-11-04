@@ -2,12 +2,11 @@
 /**
  * `gw` — the pipeline engine.
  *
- * Argument parsing is hand-rolled on purpose: it is forty lines, and every
- * dependency in a binary that handles a token is supply-chain surface that has
- * to be justified.
+ * Argument parsing is hand-rolled on purpose; see `args.ts`.
  */
 
 import { authLogin, authStatus, authLogout } from './commands/auth.js'
+import { parse, type Args } from './args.js'
 import { init } from './commands/init.js'
 import { build, printNext, status, showIr, resume } from './commands/run.js'
 import { runVerify } from './commands/verify.js'
@@ -30,6 +29,10 @@ const HELP = `${bold('gw')} — gridwright
 
   ${bold('Project')}
     gw init [--force] [--yes]  set up this repo: framework, tokens, library, placements
+      --library <dir>          the component library, instead of the detected one
+      --placement <kind>=<dir> where a kind goes; repeat it. Kinds: module, view,
+                               layout, primitive, overlay
+                               both are relative to the project root
 
   ${bold('Run')}
     gw build <figma-url>       open a run and run every automatic stage
@@ -69,42 +72,6 @@ const HELP = `${bold('gw')} — gridwright
   ${dim('is missing, and it is reported as not implemented rather than skipped.')}
 `
 
-interface Args {
-  cmd: string
-  sub?: string
-  positional: string[]
-  flags: Set<string>
-  /** Flags that carry a value, e.g. `--component path`. */
-  values: Map<string, string>
-}
-
-/** Flags that are on or off, and so never consume the token after them. */
-const SWITCHES = new Set(['view', 'json', 'yes', 'force', 'approve', 'open', 'help'])
-
-function parse(argv: string[]): Args {
-  const positional: string[] = []
-  const flags = new Set<string>()
-  const values = new Map<string, string>()
-
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i]!
-    if (!a.startsWith('--')) { positional.push(a); continue }
-
-    // Both `--component x` and `--component=x`.
-    const eq = a.indexOf('=')
-    if (eq !== -1) { values.set(a.slice(2, eq), a.slice(eq + 1)); continue }
-
-    const name = a.slice(2)
-    const next = argv[i + 1]
-    // A switch never takes a value. Without this, `gw build --view "<url>"` —
-    // the form the README and the skill both give — read the URL as the value
-    // of --view, and then reported that the URL was missing.
-    if (!SWITCHES.has(name) && next && !next.startsWith('--')) { values.set(name, next); i++ }
-    else flags.add(name)
-  }
-  return { cmd: positional[0] ?? '', sub: positional[1], positional: positional.slice(1), flags, values }
-}
-
 function transitionArgs(args: Args) {
   return {
     stage: args.positional[0],
@@ -133,7 +100,16 @@ async function main(): Promise<void> {
       return fail(`\`gw auth ${args.sub}\` does not exist.`, 'Options: login, status, logout')
 
     case 'init':
-      return init(root, { force: args.flags.has('force'), yes: args.flags.has('yes') })
+      // A value flag with nothing after it lands in `flags`, not `values`.
+      for (const f of ['library', 'placement']) {
+        if (args.flags.has(f)) return fail(`--${f} needs a value.`, 'gw init --library <dir> --placement <kind>=<dir>')
+      }
+      return init(root, {
+        force: args.flags.has('force'),
+        yes: args.flags.has('yes'),
+        library: args.values.get('library'),
+        placements: args.all.get('placement'),
+      })
 
     case 'build': {
       const url = args.positional[0]
