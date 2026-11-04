@@ -29,6 +29,9 @@ const HELP = `${bold('gw')} — gridwright
 
   ${bold('Project')}
     gw init [--force] [--yes]  set up this repo: framework, tokens, library, placements
+      --library <dir>          the component library, instead of the detected one
+      --placement <kind>=<dir> where a kind goes; repeat it. Kinds: module, view,
+                               layout, primitive, overlay
 
   ${bold('Run')}
     gw build <figma-url>       open a run and run every automatic stage

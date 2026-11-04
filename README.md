@@ -175,7 +175,10 @@ names the runner-up when a kind matched twice, and lets you correct any of it.
 The runner-up matters: a repo with both `templates/layouts` and
 `templates/partials` keeps its page shell in one and its header and footer in
 the other, and nothing in the filesystem says which. `--yes` accepts the
-detection; no TTY means no prompt, so CI still works.
+detection; no TTY means no prompt, so CI still works. When the detection is
+wrong and there is nobody to ask, say it on the command line:
+`--library <dir>` sets the library and `--placement <kind>=<dir>`, repeated once
+per kind, sets where a module, view, layout, primitive or overlay goes.
 
 **2. `gw build <url>`.** Fetch, distill, resolve, write tokens, scaffold the
 library, survey what already exists. Everything a program can decide, decided —
