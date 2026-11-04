@@ -238,3 +238,37 @@ describe('both halves of a layout are spelled as the project spells them', () =>
     expect(pathFor(shape, name)).toBe(`components/ui/${folder}/${name}.vue`)
   })
 })
+
+// Prettier configs with `singleQuote: false` are common, and the regex only
+// saw '…': a project importing "./util.js" everywhere looked like it imported
+// nothing, so the barrel was written without the extension its compiler needs.
+describe('detecting the import extension', () => {
+  const ui = (name: string, quote: string) => file(`components/ui/${name}.tsx`,
+    `import { cn } from ${quote}./cn.js${quote}\nexport default function ${name}() { return null }\n`)
+
+  it.each(["'", '"'])('reads relative imports written with %s quotes', (q) => {
+    for (const n of ['Button', 'Heading', 'Media']) ui(n, q)
+    expect(detectConventions(root).importExtension).toBe('.js')
+  })
+
+  // Counting both quote styles let a Vue project's own imports decide the
+  // convention: `importExtension: '.vue'`, which `addToBarrel` then appends to
+  // every non-SFC component, exporting a `./Button/index.vue` that is not there.
+  // The value only ever answers a question about `.ts`/`.tsx`.
+  it.each(["'", '"'])('ignores single-file imports written with %s quotes', (q) => {
+    for (const n of ['BaseIcon', 'BaseCard', 'BaseTag'])
+      file(`components/ui/${n}.vue`,
+        `<script setup>\nimport BaseIcon from ${q}./BaseIcon.vue${q}\n</script>\n<template><div /></template>\n`)
+    expect(detectConventions(root).importExtension).toBe('')
+  })
+
+  // An SFC import is not evidence either way, so it cannot tip the majority:
+  // two bare `.ts` imports against one `./Icon.vue` is a bare convention.
+  it('a single-file import does not dilute the bare majority', () => {
+    file('components/ui/Button.tsx',
+      `import { cn } from './cn'\nimport Icon from './Icon.vue'\nexport default function Button() { return null }\n`)
+    file('components/ui/Heading.tsx',
+      `import { cn } from './cn'\nexport default function Heading() { return null }\n`)
+    expect(detectConventions(root).importExtension).toBe('')
+  })
+})

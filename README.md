@@ -97,13 +97,17 @@ supply-chain surface for nothing.
 ## Install
 
 > **Not on npm yet.** Until it is published, both routes below start from a
-> clone of this repo. `pnpm install && pnpm build` from its root, then
-> `pnpm link --global` from `packages/cli` — the `gw` binary belongs to that
-> package, and linking the root links nothing you can run. The plugin installs
-> from the same checkout:
-> `/plugin marketplace add /path/to/gridwright`, then
-> `/plugin install gridwright@gridwright`. The commands below are written as
-> they will read once there is a package.
+> clone of this repo. Run `pnpm link:cli` from its root: it installs, builds,
+> then runs `npm link` from `packages/cli` — the `gw` binary belongs to that
+> package, and linking the root links nothing you can run. It is `npm link` and
+> not `pnpm link --global` on purpose: pnpm 10 changed `link` so that it demands
+> a directory argument, and its global bin directory is rarely on the `PATH`, so
+> even a successful link leaves you with a `gw` the shell cannot find. npm's
+> global bin usually is. To try it without linking anything, `pnpm install &&
+> pnpm build` once and then `pnpm gw <command>` runs the built CLI straight from
+> the clone. The plugin installs from the same checkout: `/plugin marketplace
+> add /path/to/gridwright`, then `/plugin install gridwright@gridwright`. The
+> commands below are written as they will read once there is a package.
 
 There are two ways in, and the recommended one is not the one you type.
 
@@ -175,7 +179,13 @@ names the runner-up when a kind matched twice, and lets you correct any of it.
 The runner-up matters: a repo with both `templates/layouts` and
 `templates/partials` keeps its page shell in one and its header and footer in
 the other, and nothing in the filesystem says which. `--yes` accepts the
-detection; no TTY means no prompt, so CI still works.
+detection; no TTY means no prompt, so CI still works. When the detection is
+wrong and there is nobody to ask, say it on the command line:
+`--library <dir>` sets the library and `--placement <kind>=<dir>`, repeated once
+per kind, sets where a module, view, layout, primitive or overlay goes. Both
+take a path relative to the project root, and both are refused outright if they
+point outside it — a pasted absolute path used to be silently turned into a
+relative one that was not there.
 
 **2. `gw build <url>`.** Fetch, distill, resolve, write tokens, scaffold the
 library, survey what already exists. Everything a program can decide, decided —

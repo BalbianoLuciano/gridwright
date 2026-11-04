@@ -11,6 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, extname } from 'node:path'
 import { paths, type Framework, type GridwrightConfig } from '@gridwright/core'
+import { isSingleFileComponent } from './files.js'
 
 export * from './placement.js'
 // The one reader of a component's name off its path; the CLI needs it too.
@@ -189,18 +190,24 @@ function addToBarrel(
   const barrel = join(root, config.library.barrel)
   const current = existsSync(barrel) ? readFileSync(barrel, 'utf8') : ''
 
-  const ext = config.conventions?.importExtension ?? ''
+  // A single-file component is not a module TypeScript or Node resolves, so
+  // the bundler needs the real extension in the specifier. Detection only
+  // counts `./X` imports, and a Vue project importing through an alias has none:
+  // the convention came back '' and the barrel exported './button/Button', which
+  // Vite does not resolve. The convention only speaks for `.ts`/`.tsx`.
+  const file = extname(componentPath)
+  const keepsExtension = isSingleFileComponent(componentPath)
+  const ext = keepsExtension ? '' : (config.conventions?.importExtension ?? '')
 
   let spec = relative(dirname(barrel), componentPath).replace(/\\/g, '/')
-  spec = spec.replace(new RegExp(`${extname(spec)}$`), '')
+  if (!keepsExtension) spec = spec.slice(0, spec.length - file.length)
   // An index file is imported by its directory — but only where a bare
   // specifier compiles. Under `moduleResolution: node16` a directory is not
   // resolvable and the extension is mandatory, so the path stays complete.
-  if (ext === '') spec = spec.replace(/\/index$/, '')
+  // Never for a single-file component: `./card` would not find `card/index.vue`.
+  if (ext === '' && !keepsExtension) spec = spec.replace(/\/index$/, '')
   if (!spec.startsWith('.')) spec = `./${spec}`
   spec += ext
-
-  if (current.includes(`from '${spec}'`)) return undefined
 
   // Re-export what the file actually exports. A barrel pulling a default out of
   // a module that exports a named `Component` fails at import time, in the
@@ -209,8 +216,38 @@ function addToBarrel(
   const line = named
     ? `export { ${named} as ${name} } from '${spec}'`
     : `export { default as ${name} } from '${spec}'`
+
+  // Dedupe by the name the barrel exports, not by the specifier. Every Vue
+  // project registered before the extension fix has `from './button/Button'`
+  // in here; the specifier is now `./button/Button.vue`, so comparing the
+  // whole string found no match and appended a second
+  // `export { default as Button }` — which TypeScript and esbuild both reject.
+  // The upgrade path ended in a barrel that would not parse.
+  const lines = current.split('\n')
+  const at = lines.findIndex((l) => exportedNames(l).includes(name))
+  if (at !== -1) {
+    // One line can export several names. Rewriting it to correct this one's
+    // path would silently drop the others, so a barrel the project wrote by
+    // hand is left as it is: the name is already exported.
+    if (lines[at] === line || exportedNames(lines[at]!).length > 1) return undefined
+    lines[at] = line
+    writeFileSync(barrel, `${lines.join('\n').trimEnd()}\n`)
+    return line
+  }
+
   writeFileSync(barrel, `${current.trimEnd()}\n${line}\n`)
   return line
+}
+
+/** The names a barrel line exports, as a consumer importing from it sees them:
+ *  the alias after `as`, or the identifier itself when there is none. */
+function exportedNames(line: string): string[] {
+  const clause = line.match(/^\s*export\s*\{([^}]*)\}\s*from\s/)
+  if (!clause) return []
+  return clause[1]!
+    .split(',')
+    .map((part) => part.trim().split(/\s+as\s+/).pop()!.trim())
+    .filter(Boolean)
 }
 
 function sortKeys(registry: Registry): Registry {
