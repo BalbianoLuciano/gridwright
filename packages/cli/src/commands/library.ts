@@ -12,7 +12,7 @@ import {
   activeRun, advance, loadConfig, loadState, paths, saveState, sectionFinished, sectionSkipped,
   type IR, type RunState, type GridwrightConfig, type RunScore,
 } from '@gridwright/core'
-import { ensureLibrary, registerComponent, readRegistry, findByHash, recordView, inferKind } from '@gridwright/library'
+import { ensureLibrary, registerComponent, readRegistry, findByHash, recordView, inferKind, componentName } from '@gridwright/library'
 import { ok, fail, info, warn, dim, bold, green, yellow } from '../ui.js'
 
 export interface LibraryArgs {
@@ -305,15 +305,6 @@ function registerView(root: string, config: GridwrightConfig, run: RunState): vo
   advance(run, 'library:register', { status: 'done', output: { view: viewName, sections } })
   saveState(root, run)
   info(`Now on ${green(run.stage)}`)
-}
-
-/** `Card/index.tsx` is Card, `Card.tsx` is Card — the name the codebase uses. */
-function componentName(path: string): string | null {
-  const parts = path.replace(/\\/g, '/').split('/')
-  const file = parts[parts.length - 1] ?? ''
-  const base = file.replace(/\.[^.]+$/, '')
-  const name = base === 'index' ? (parts[parts.length - 2] ?? '') : base
-  return /^[A-Z]/.test(name) ? name : null
 }
 
 /** Slots become props; the Figma copy is their default value. */

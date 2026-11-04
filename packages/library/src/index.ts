@@ -13,6 +13,8 @@ import { dirname, join, relative, extname } from 'node:path'
 import { paths, type Framework, type GridwrightConfig } from '@gridwright/core'
 
 export * from './placement.js'
+// The one reader of a component's name off its path; the CLI needs it too.
+export { componentName } from './files.js'
 export * from './fonts.js'
 
 export interface RegistryEntry {

@@ -13,7 +13,8 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { extname, join, relative, basename, dirname } from 'node:path'
+import { extname, join, relative } from 'node:path'
+import { componentName } from './files.js'
 import type { GridwrightConfig, IR, IRNode, IRRole } from '@gridwright/core'
 import { readRegistry, type Registry, type RegistryEntry } from './index.js'
 
@@ -181,16 +182,6 @@ export function extractNodeIds(source: string): string[] {
     out.add(`${m[1]}:${m[2]}`)
   }
   return [...out]
-}
-
-/** `Card/index.tsx` is Card; `Card.tsx` is Card. Barrels and helpers are not
- *  components and would only add noise to every match. */
-function componentName(file: string): string | null {
-  const base = basename(file, extname(file))
-  const name = base === 'index' ? basename(dirname(file)) : base
-  if (/^(index|types|utils|helpers|constants|registry)$/i.test(name)) return null
-  if (!/^[A-Z]/.test(name)) return null
-  return name
 }
 
 /** Props by shape, not by type-checking. `defineProps<{a,b}>`, a destructured
