@@ -14,10 +14,59 @@ import {
   DEFAULT_CONFIG, writeConfig, configPath, loadConfig, validateConfig,
   gitignoreBlock, paths, type GridwrightConfig, type Framework,
 } from '@gridwright/core'
-import { detectConventions, KIND_LABEL, type Placement } from '@gridwright/library'
+import { detectConventions, KIND_LABEL, PLACEMENT_KINDS, type Placement, type PlacementKind } from '@gridwright/library'
 import { ok, info, warn, fail, dim, table, bold, green, confirm, promptLine } from '../ui.js'
 
-export async function init(root: string, opts: { force?: boolean; yes?: boolean } = {}): Promise<void> {
+export interface InitOptions {
+  force?: boolean
+  yes?: boolean
+  /** `--library <dir>`: the library directory, instead of the detected one. */
+  library?: string
+  /** `--placement <kind>=<dir>`, one entry per occurrence of the flag. */
+  placements?: string[]
+}
+
+/**
+ * Turns `--placement kind=dir` values into placements the person has answered.
+ *
+ * Marked `asked`, the same as a choice made at the prompt, so the shapes of the
+ * directories they name are read again. Throws rather than exiting so a bad
+ * flag is reported by the one handler in `index.ts`, before anything is written.
+ */
+export function parsePlacementFlags(raw: string[]): Placement[] {
+  const out: Placement[] = []
+  for (const entry of raw) {
+    const eq = entry.indexOf('=')
+    const kind = eq === -1 ? entry : entry.slice(0, eq)
+    const dir = eq === -1 ? '' : normalizeDir(entry.slice(eq + 1))
+    if (!kind || !dir) {
+      throw new Error(`--placement needs <kind>=<dir>, got "${entry}". Example: --placement view=resources/js/views`)
+    }
+    if (!(PLACEMENT_KINDS as string[]).includes(kind)) {
+      throw new Error(`unknown placement kind "${kind}" in --placement. Kinds: ${PLACEMENT_KINDS.join(', ')}`)
+    }
+    // Two answers for one kind cannot both hold, and keeping the last would be
+    // the same silent loss the repeatable parser exists to avoid.
+    if (out.some((p) => p.kind === kind)) {
+      throw new Error(`--placement was given twice for "${kind}"; a kind goes in one directory`)
+    }
+    out.push({ kind: kind as PlacementKind, dir, from: 'asked' })
+  }
+  return out
+}
+
+/** Same cleanup the prompt applies to a typed path: relative to the root, no
+ *  leading `./` and no trailing slash. */
+function normalizeDir(dir: string): string {
+  return dir.trim().replace(/^\.?\//, '').replace(/\/+$/, '')
+}
+
+export async function init(root: string, opts: InitOptions = {}): Promise<void> {
+  // Before anything is read or written: a typo in a flag should cost nothing.
+  const given = parsePlacementFlags(opts.placements ?? [])
+  const libraryFlag = opts.library === undefined ? undefined : normalizeDir(opts.library)
+  if (libraryFlag === '') throw new Error('--library needs a directory, e.g. --library src/components/ui')
+
   if (existsSync(configPath(root)) && !opts.force) {
     const existing = loadConfig(root)
     warn(`${configPath(root)} already exists`)
@@ -33,7 +82,10 @@ export async function init(root: string, opts: { force?: boolean; yes?: boolean 
     config.tokens = { ...config.tokens, target: tokenFile.target, file: tokenFile.file }
   }
 
-  const lib = detectLibraryDir(root)
+  // The detection is a fixed list and the first hit wins, so in a monorepo it
+  // picks the portal's directory over the module's. The flag is the way to say
+  // which one is right without rewriting the config by hand.
+  const lib = libraryFlag ?? detectLibraryDir(root)
   if (lib) {
     config.library = { dir: lib, barrel: join(lib, 'index.ts'), registry: join(lib, 'registry.json') }
   }
@@ -48,7 +100,7 @@ export async function init(root: string, opts: { force?: boolean; yes?: boolean 
   // reliable way: `modules`, `blocks`, `sections`, `partials`, `layouts` — every
   // ecosystem picks a few and no two pick the same few, and guessing silently
   // is how a header ends up filed as a page module.
-  conventions.placements = await setupPlacements(conventions.placements, opts.yes ?? false)
+  conventions.placements = await setupPlacements(conventions.placements, opts.yes ?? false, given)
 
   // Read the shapes again from the directories that are actually going into
   // the config. A person who picks `templates/partials` over the detected
@@ -88,14 +140,21 @@ export async function init(root: string, opts: { force?: boolean; yes?: boolean 
  * an intention, and `author` makes it when there is finally something to put
  * in it.
  */
-async function setupPlacements(detected: Placement[], acceptAll: boolean): Promise<Placement[]> {
+async function setupPlacements(
+  proposed: Placement[],
+  acceptAll: boolean,
+  given: Placement[] = [],
+): Promise<Placement[]> {
+  // What was passed on the command line is already answered: it replaces the
+  // detection for that kind, and is not asked about again.
+  const detected = proposed.map((p) => given.find((g) => g.kind === p.kind) ?? p)
   const found = detected.filter((p) => p.from === 'found')
-  const missing = detected.filter((p) => p.from !== 'found')
+  const missing = detected.filter((p) => p.from === 'absent')
 
   console.log()
   console.log(`  ${bold('Where each kind of thing goes')}`)
   for (const p of detected) {
-    const mark = p.from === 'found' ? green('found') : dim('  new')
+    const mark = p.from === 'found' ? green('found') : p.from === 'asked' ? green(' flag') : dim('  new')
     console.log(`    ${mark}  ${p.dir.padEnd(26)} ${dim(KIND_LABEL[p.kind])}`)
     // The runner-up is often the right answer and the tool cannot tell: a repo
     // with both `templates/layouts` and `templates/partials` keeps its page
@@ -113,6 +172,9 @@ async function setupPlacements(detected: Placement[], acceptAll: boolean): Promi
     return detected
   }
 
+  // Nothing left to ask when every kind came from a flag.
+  if (given.length === detected.length) return detected
+
   console.log()
   const change = await confirm('  Change any of these?')
   if (!change) {
@@ -126,6 +188,7 @@ async function setupPlacements(detected: Placement[], acceptAll: boolean): Promi
   console.log(dim('\n  Pick a number; Enter keeps the first.'))
   const out: Placement[] = []
   for (const p of detected) {
+    if (given.some((g) => g.kind === p.kind)) { out.push(p); continue }
     const choices = [p.dir, ...(p.alternatives ?? [])]
     console.log(`\n  ${KIND_LABEL[p.kind]}`)
     choices.forEach((c, i) => {

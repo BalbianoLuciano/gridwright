@@ -96,7 +96,16 @@ async function main(): Promise<void> {
       return fail(`\`gw auth ${args.sub}\` does not exist.`, 'Options: login, status, logout')
 
     case 'init':
-      return init(root, { force: args.flags.has('force'), yes: args.flags.has('yes') })
+      // A value flag with nothing after it lands in `flags`, not `values`.
+      for (const f of ['library', 'placement']) {
+        if (args.flags.has(f)) return fail(`--${f} needs a value.`, 'gw init --library <dir> --placement <kind>=<dir>')
+      }
+      return init(root, {
+        force: args.flags.has('force'),
+        yes: args.flags.has('yes'),
+        library: args.values.get('library'),
+        placements: args.all.get('placement'),
+      })
 
     case 'build': {
       const url = args.positional[0]
