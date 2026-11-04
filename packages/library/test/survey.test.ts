@@ -40,6 +40,22 @@ describe('indexing what a project already has', () => {
     expect(found.map((c) => c.name)).toContain('HeroBanner')
   })
 
+  /**
+   * `hero-banner.vue` and `pricing-table/index.vue` are how Vue and Nuxt spell
+   * a component, and `isComponentFile` already admits both when it reads a
+   * project's conventions. The index did not: it rejected any name that did not
+   * start uppercase, so these never reached it. A later run could not find them
+   * to reuse, and `library:register` named the entry after the Figma frame.
+   */
+  it.each([
+    ['src/components/hero-banner.vue', 'HeroBanner'],
+    ['src/components/dialog-header/DialogHeader.vue', 'DialogHeader'],
+    ['src/components/pricing-table/index.vue', 'PricingTable'],
+  ])('indexes %s as %s', (path, name) => {
+    write(path, '<template><div /></template>\n')
+    expect(indexComponents(root, config).map((c) => c.name)).toContain(name)
+  })
+
   it('skips barrels, helpers and lowercase files', () => {
     write('src/components/index.ts', 'export * from "./x"')
     write('src/components/utils.ts', 'export const x = 1')

@@ -116,7 +116,54 @@ describe('learning how a project writes components', () => {
     }
 
     const shape = detectConventions(root).shapes.find((s) => s.dir === 'src/modules')!
-    expect(shape).toMatchObject({ file: '{Name}/{Name}.vue', seenIn: 2 })
+    expect(shape).toMatchObject({ file: '{name}/{name}.vue', seenIn: 2 })
+    // `{Name}/{Name}.vue` here wrote `ProofCards/ProofCards.vue` beside the
+    // `hero-banner/hero-banner.vue` the project actually has.
+    expect(pathFor(shape, 'ProofCards')).toBe('src/modules/proof-cards/proof-cards.vue')
+  })
+
+  // `patterns/dialog/Dialog.vue`, `components/button/Button.vue`: a kebab-case
+  // folder around a PascalCase file. The layout came back as `{Name}/{Name}.vue`,
+  // which with `Name=Button` resolves to `Button/Button.vue`: a folder that
+  // does not exist next to the ones that do, in a project that is case-sensitive
+  // everywhere but on the laptop it was written on.
+  it('reads a kebab-case folder around a PascalCase file as its own layout', () => {
+    for (const n of ['Dialog', 'Button']) {
+      file(`src/modules/${n.toLowerCase()}/${n}.vue`, '<template><div /></template>\n')
+    }
+
+    const shape = detectConventions(root).shapes.find((s) => s.dir === 'src/modules')!
+    expect(shape).toMatchObject({ file: '{name}/{Name}.vue', seenIn: 2 })
+    expect(pathFor(shape, 'DialogHeader')).toBe('src/modules/dialog-header/DialogHeader.vue')
+  })
+
+  it('keeps `{Name}` for a folder and a file that agree', () => {
+    file('src/modules/Intro/Intro.vue', '<template><div /></template>\n')
+    file('src/modules/Hero/Hero.vue', '<template><div /></template>\n')
+
+    const shape = detectConventions(root).shapes.find((s) => s.dir === 'src/modules')!
+    expect(shape.file).toBe('{Name}/{Name}.vue')
+  })
+
+  it('writes the kebab-case folder in front of an index file', () => {
+    for (const n of ['hero-banner', 'pricing-table']) file(`src/modules/${n}/index.vue`, '<template><div /></template>\n')
+
+    const shape = detectConventions(root).shapes.find((s) => s.dir === 'src/modules')!
+    expect(shape.file).toBe('{name}/index.vue')
+    expect(pathFor(shape, 'ProofCards')).toBe('src/modules/proof-cards/index.vue')
+  })
+
+  // Configs written before `{name}` existed carry only `{Name}`.
+  it('fills in a `{Name}` template from an existing config the way it always did', () => {
+    const shape = { dir: 'src/modules', file: '{Name}/{Name}.tsx', export: 'default', alsoExports: [], seenIn: 1 }
+    expect(pathFor(shape, 'ProofCards')).toBe('src/modules/ProofCards/ProofCards.tsx')
+  })
+
+  it('derives the kebab-case spelling from a PascalCase name', () => {
+    const shape = { dir: 'src/modules', file: '{name}/{Name}.vue', export: 'default', alsoExports: [], seenIn: 1 }
+    expect(pathFor(shape, 'Dialog')).toBe('src/modules/dialog/Dialog.vue')
+    expect(pathFor(shape, 'DialogHeader')).toBe('src/modules/dialog-header/DialogHeader.vue')
+    expect(pathFor(shape, 'HTMLView')).toBe('src/modules/html-view/HTMLView.vue')
   })
 
   // A folder called `utils` with an `index.ts` in it is not a component, and
@@ -146,6 +193,49 @@ describe('learning how a project writes components', () => {
     const c = detectConventions(root)
     const shape = shapeFor(c, 'components/modules')!
     expect(pathFor(shape, 'NewsletterBanner')).toBe('components/modules/NewsletterBanner/index.tsx')
+  })
+})
+
+/**
+ * `layoutOf` learned `{name}` for the folder and stopped there. The file's own
+ * spelling is a separate question, and so is a flat directory's: a Nuxt project
+ * of `hero-banner.vue` was labelled `{Name}.vue` and got `ProofCards.vue`
+ * written beside it — the same bug the placeholder was added to fix.
+ */
+describe('both halves of a layout are spelled as the project spells them', () => {
+  const sfc = (rel: string) => file(rel, '<template><div /></template>\n')
+  const shapeOf = () => detectConventions(root).shapes.find((s) => s.dir === 'components/ui')!
+
+  it.each([
+    ['flat kebab-case files', ['hero-banner.vue', 'pricing-table.vue', 'nav-bar.vue'], '{name}.vue'],
+    ['flat PascalCase files', ['HeroBanner.vue', 'PricingTable.vue', 'NavBar.vue'], '{Name}.vue'],
+    ['kebab folder, PascalCase file', ['hero-banner/HeroBanner.vue', 'pricing-table/PricingTable.vue', 'nav-bar/NavBar.vue'], '{name}/{Name}.vue'],
+    ['PascalCase folder, kebab file', ['HeroBanner/hero-banner.vue', 'PricingTable/pricing-table.vue', 'NavBar/nav-bar.vue'], '{Name}/{name}.vue'],
+    ['kebab folder and file', ['hero-banner/hero-banner.vue', 'pricing-table/pricing-table.vue', 'nav-bar/nav-bar.vue'], '{name}/{name}.vue'],
+    ['kebab folder with an index', ['hero-banner/index.vue', 'pricing-table/index.vue', 'nav-bar/index.vue'], '{name}/index.vue'],
+  ])('%s', (_what, files, expected) => {
+    for (const f of files as string[]) sfc(`components/ui/${f}`)
+    expect(shapeOf().file).toBe(expected)
+  })
+
+  // Two layouts, one occurrence each. `commonest` kept the first entry of a Map
+  // filled in `readdirSync` order, so the shape a project got depended on its
+  // filesystem. A tie is now broken by the name.
+  it('breaks a tie by name rather than by directory order', () => {
+    sfc('components/ui/AlphaCard/AlphaCard.vue')
+    sfc('components/ui/zebra-tag/zebra-tag.vue')
+    expect(shapeOf().file).toBe('{Name}/{Name}.vue')
+  })
+
+  // `Grid2Col` is not `grid2-col`: a digit run is its own word, which is the
+  // spelling lodash and the kebab helpers in the ecosystem produce.
+  it.each([
+    ['DialogHeader', 'dialog-header'],
+    ['Grid2Col', 'grid-2-col'],
+    ['NavBar', 'nav-bar'],
+  ])('writes %s into a kebab folder as %s', (name, folder) => {
+    const shape = { dir: 'components/ui', file: '{name}/{Name}.vue', export: 'default', alsoExports: [], seenIn: 3 }
+    expect(pathFor(shape, name)).toBe(`components/ui/${folder}/${name}.vue`)
   })
 })
 
