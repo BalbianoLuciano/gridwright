@@ -44,3 +44,19 @@ describe('finding the directories a project already has', () => {
     expect(module).toMatchObject({ dir: 'src/modules', from: 'found' })
   })
 })
+
+describe('a component folder whose file differs from it only in case', () => {
+  // `modules/button/Button.vue` in a Vue project. Counting went through
+  // `existsSync('button/button.vue')`: true on macOS by accident, false on
+  // Linux, so the same checkout proposed a second components directory in CI.
+  // The files are written with their real names so no filesystem can paper
+  // over the difference.
+  it('counts a kebab-case folder holding a PascalCase file', () => {
+    const root = fresh()
+    mkdirSync(join(root, 'src/modules/button'), { recursive: true })
+    writeFileSync(join(root, 'src/modules/button/Button.vue'), '<template><button /></template>')
+
+    const found = detectPlacements(root).find((p) => p.kind === 'module')!
+    expect(found).toMatchObject({ dir: 'src/modules', from: 'found' })
+  })
+})
