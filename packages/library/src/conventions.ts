@@ -25,14 +25,16 @@ export interface ComponentShape {
   /** Where this kind of component lives, relative to the project root. */
   dir: string
   /**
-   * How the file is laid out: `{Name}.tsx`, `{Name}/index.tsx`,
-   * `{Name}/{Name}.tsx`, or `{name}/{Name}.vue`.
+   * How the file is laid out: `{Name}.tsx`, `{name}.vue`, `{Name}/index.tsx`,
+   * `{name}/{Name}.vue`, `{Name}/{name}.vue`, and the rest of the pairings.
    *
    * `{Name}` is the component's PascalCase name and `{name}` its kebab-case
    * spelling (`DialogHeader` → `dialog-header`). Two placeholders because a Vue
    * project keeps `dialog-header/DialogHeader.vue`: folder and file spell the
-   * same name differently, and one placeholder could not say so. Configs that
-   * only carry `{Name}` stay valid.
+   * same name differently, and one placeholder could not say so. Each half is
+   * read on its own, so every pairing a project actually uses can be stated —
+   * including a flat `hero-banner.vue`, which the folder-only reading missed.
+   * Configs that only carry `{Name}` stay valid.
    */
   file: string
   /** `default`, or `named:Component` when the project exports by name. */
@@ -239,28 +241,32 @@ function inferShape(root: string, dir: string): ComponentShape | null {
 }
 
 /**
- * How a component's file sits in its directory: `{Name}.tsx`,
- * `{Name}/index.tsx`, `{Name}/{Name}.tsx`, or `{name}/{Name}.vue`.
+ * How a component's file sits in its directory — `{Name}.tsx`, `{name}.vue`,
+ * `{Name}/index.tsx`, `{name}/{Name}.vue` and the rest of the combinations.
  *
- * The third was missing. A folder per module holding `Intro/Intro.tsx` beside
- * its demo is as common as the `index` spelling, and not knowing it made the
- * whole directory look empty.
+ * `{Name}/{Name}` was missing at first: a folder per module holding
+ * `Intro/Intro.tsx` beside its demo is as common as the `index` spelling, and
+ * not knowing it made the whole directory look empty.
  *
- * The fourth is a Vue project's `button/Button.vue`. It used to be labelled
- * `{Name}/{Name}.vue`, which for `Button` resolves to `Button/Button.vue`: a
- * folder spelled differently from the ones the project has. The same went for
- * `hero-banner/hero-banner.vue`, which is `{name}/{name}.vue`.
+ * Then `{name}` was added for a Vue project's `button/Button.vue`, which used
+ * to be labelled `{Name}/{Name}.vue` — resolving for `Button` to
+ * `Button/Button.vue`, a folder spelled unlike every other folder in the
+ * project. But only the folder learned the kebab spelling, so a flat directory
+ * of `hero-banner.vue` still came back `{Name}.vue` and got `ProofCards.vue`
+ * written into it, and `HeroBanner/hero-banner.vue` came back
+ * `{Name}/{Name}.vue`. The folder's spelling and the file's are two separate
+ * questions, and each is read on its own.
  */
 function layoutOf(dir: string, file: string): string {
   const ext = extname(file)
-  if (dirname(file) === dir) return `{Name}${ext}`
-
   const base = basename(file, ext)
-  // A folder that starts lowercase is kebab-case; its placeholder says so.
-  const folder = /^[A-Z]/.test(basename(dirname(file))) ? '{Name}' : '{name}'
-  if (base === 'index') return `${folder}/index${ext}`
-  if (folder === '{name}') return `{name}/${/^[A-Z]/.test(base) ? '{Name}' : '{name}'}${ext}`
-  return `{Name}/{Name}${ext}`
+  const spell = (part: string) => (/^[A-Z]/.test(part) ? '{Name}' : '{name}')
+
+  if (dirname(file) === dir) return `${spell(base)}${ext}`
+
+  const folder = spell(basename(dirname(file)))
+  // An `index` file takes its name from the folder, so there is nothing to spell.
+  return base === 'index' ? `${folder}/index${ext}` : `${folder}/${spell(base)}${ext}`
 }
 
 /** One level deep plus the folder-per-component spellings from `files.ts`.
@@ -363,10 +369,20 @@ export function pathFor(shape: ComponentShape, name: string): string {
   return join(shape.dir, shape.file.replaceAll('{Name}', name).replaceAll('{name}', kebabCase(name)))
 }
 
-/** `DialogHeader` → `dialog-header`, `HTMLView` → `html-view`. */
+/**
+ * `DialogHeader` → `dialog-header`, `Grid2Col` → `grid-2-col`.
+ *
+ * A digit run is a word of its own. Splitting only on the lowercase-to-uppercase
+ * boundary gave `grid2-col`, which is what Vue's own `hyphenate` produces for
+ * attribute names but not what anyone writes on a directory: lodash, every
+ * `kebab-case` helper in the ecosystem and the folders in a real project all
+ * separate the digits.
+ */
 function kebabCase(name: string): string {
   return name
-    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .replace(/([A-Za-z])(\d)/g, '$1-$2')
+    .replace(/(\d)([A-Za-z])/g, '$1-$2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
     .toLowerCase()
 }
@@ -375,9 +391,15 @@ function bump(map: Map<string, number>, key: string): [string, number] {
   return [key, (map.get(key) ?? 0) + 1]
 }
 
+/** Ties are broken by name, not by insertion order. Going from three layout
+ *  spellings to seven turned directories that used to be unanimous into ties,
+ *  and the map is filled in `readdirSync` order — so the shape a project got
+ *  depended on the filesystem that listed it. */
 function commonest(map: Map<string, number>): string | null {
   let best: [string, number] | null = null
-  for (const entry of map) if (!best || entry[1] > best[1]) best = entry
+  for (const entry of map) {
+    if (!best || entry[1] > best[1] || (entry[1] === best[1] && entry[0] < best[0])) best = entry
+  }
   return best?.[0] ?? null
 }
 

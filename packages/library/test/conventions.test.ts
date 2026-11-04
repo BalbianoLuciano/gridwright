@@ -195,3 +195,46 @@ describe('learning how a project writes components', () => {
     expect(pathFor(shape, 'NewsletterBanner')).toBe('components/modules/NewsletterBanner/index.tsx')
   })
 })
+
+/**
+ * `layoutOf` learned `{name}` for the folder and stopped there. The file's own
+ * spelling is a separate question, and so is a flat directory's: a Nuxt project
+ * of `hero-banner.vue` was labelled `{Name}.vue` and got `ProofCards.vue`
+ * written beside it — the same bug the placeholder was added to fix.
+ */
+describe('both halves of a layout are spelled as the project spells them', () => {
+  const sfc = (rel: string) => file(rel, '<template><div /></template>\n')
+  const shapeOf = () => detectConventions(root).shapes.find((s) => s.dir === 'components/ui')!
+
+  it.each([
+    ['flat kebab-case files', ['hero-banner.vue', 'pricing-table.vue', 'nav-bar.vue'], '{name}.vue'],
+    ['flat PascalCase files', ['HeroBanner.vue', 'PricingTable.vue', 'NavBar.vue'], '{Name}.vue'],
+    ['kebab folder, PascalCase file', ['hero-banner/HeroBanner.vue', 'pricing-table/PricingTable.vue', 'nav-bar/NavBar.vue'], '{name}/{Name}.vue'],
+    ['PascalCase folder, kebab file', ['HeroBanner/hero-banner.vue', 'PricingTable/pricing-table.vue', 'NavBar/nav-bar.vue'], '{Name}/{name}.vue'],
+    ['kebab folder and file', ['hero-banner/hero-banner.vue', 'pricing-table/pricing-table.vue', 'nav-bar/nav-bar.vue'], '{name}/{name}.vue'],
+    ['kebab folder with an index', ['hero-banner/index.vue', 'pricing-table/index.vue', 'nav-bar/index.vue'], '{name}/index.vue'],
+  ])('%s', (_what, files, expected) => {
+    for (const f of files as string[]) sfc(`components/ui/${f}`)
+    expect(shapeOf().file).toBe(expected)
+  })
+
+  // Two layouts, one occurrence each. `commonest` kept the first entry of a Map
+  // filled in `readdirSync` order, so the shape a project got depended on its
+  // filesystem. A tie is now broken by the name.
+  it('breaks a tie by name rather than by directory order', () => {
+    sfc('components/ui/AlphaCard/AlphaCard.vue')
+    sfc('components/ui/zebra-tag/zebra-tag.vue')
+    expect(shapeOf().file).toBe('{Name}/{Name}.vue')
+  })
+
+  // `Grid2Col` is not `grid2-col`: a digit run is its own word, which is the
+  // spelling lodash and the kebab helpers in the ecosystem produce.
+  it.each([
+    ['DialogHeader', 'dialog-header'],
+    ['Grid2Col', 'grid-2-col'],
+    ['NavBar', 'nav-bar'],
+  ])('writes %s into a kebab folder as %s', (name, folder) => {
+    const shape = { dir: 'components/ui', file: '{name}/{Name}.vue', export: 'default', alsoExports: [], seenIn: 3 }
+    expect(pathFor(shape, name)).toBe(`components/ui/${folder}/${name}.vue`)
+  })
+})
