@@ -148,3 +148,16 @@ describe('learning how a project writes components', () => {
     expect(pathFor(shape, 'NewsletterBanner')).toBe('components/modules/NewsletterBanner/index.tsx')
   })
 })
+
+// Prettier configs with `singleQuote: false` are common, and the regex only
+// saw '…': a project importing "./util.js" everywhere looked like it imported
+// nothing, so the barrel was written without the extension its compiler needs.
+describe('detecting the import extension', () => {
+  const ui = (name: string, quote: string) => file(`components/ui/${name}.tsx`,
+    `import { cn } from ${quote}./cn.js${quote}\nexport default function ${name}() { return null }\n`)
+
+  it.each(["'", '"'])('reads relative imports written with %s quotes', (q) => {
+    for (const n of ['Button', 'Heading', 'Media']) ui(n, q)
+    expect(detectConventions(root).importExtension).toBe('.js')
+  })
+})

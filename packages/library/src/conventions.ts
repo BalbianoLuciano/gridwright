@@ -137,7 +137,7 @@ function detectImportExtension(root: string, shapes: ComponentShape[]): string {
     for (const file of componentFiles(join(root, shape.dir)).slice(0, 40)) {
       const source = safeRead(file)
       if (!source) continue
-      for (const m of source.matchAll(/from\s+'(\.[^']*)'/g)) {
+      for (const m of source.matchAll(/from\s+['"](\.[^'"]*)['"]/g)) {
         total++
         const ext = m[1]!.match(/\.[a-z]+$/)?.[0] ?? ''
         counts.set(ext, (counts.get(ext) ?? 0) + 1)
