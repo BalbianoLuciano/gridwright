@@ -19,7 +19,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, dirname, extname, join, relative, resolve } from 'node:path'
 import { detectPlacements, type Placement } from './placement.js'
-import { folderComponent } from './files.js'
+import { folderComponent, isSingleFileComponent } from './files.js'
 
 export interface ComponentShape {
   /** Where this kind of component lives, relative to the project root. */
@@ -138,6 +138,12 @@ function detectImportExtension(root: string, shapes: ComponentShape[]): string {
       const source = safeRead(file)
       if (!source) continue
       for (const m of source.matchAll(/from\s+['"](\.[^'"]*)['"]/g)) {
+        // What this value answers is what a `.ts` import specifier must look
+        // like, and a `./Icon.vue` says nothing about that. Counting it made
+        // `.vue` the project's convention — and `addToBarrel` appended it to
+        // components that are not single-file, exporting paths that do not
+        // exist. Not even in `total`: it would dilute the bare majority below.
+        if (isSingleFileComponent(m[1]!)) continue
         total++
         const ext = m[1]!.match(/\.[a-z]+$/)?.[0] ?? ''
         counts.set(ext, (counts.get(ext) ?? 0) + 1)
@@ -198,7 +204,7 @@ function inferShape(root: string, dir: string): ComponentShape | null {
     // setup>` writes no export line at all, so a directory of `.vue` files
     // came back `unknown` and taught nothing — the whole directory had no
     // shape, which is the same hole as a directory that was never read.
-    const isDefault = /^export\s+default\s/m.test(source) || /\.(vue|svelte)$/.test(file)
+    const isDefault = /^export\s+default\s/m.test(source) || isSingleFileComponent(file)
     exports.set(...bump(exports, isDefault ? 'default' : named ? `named:${named[1]}` : 'unknown'))
 
     // Anything else the file exports at the top level. A shape is not only its
@@ -284,7 +290,7 @@ function isComponentFile(name: string): boolean {
   // PascalCase, or kebab-case for a single-file component: `hero-banner.vue`
   // is how Vue and Nuxt spell it. A lowercase `.tsx` is a helper or a demo,
   // never a component, so that one stays PascalCase-only.
-  return /^[A-Z]/.test(base) || (/^\.(vue|svelte)$/.test(ext) && /^[a-z][a-z0-9-]*$/.test(base))
+  return /^[A-Z]/.test(base) || (isSingleFileComponent(ext) && /^[a-z][a-z0-9-]*$/.test(base))
 }
 
 /**
