@@ -296,7 +296,9 @@ error — create it when you have something to put in it.
 shapes found in the project — where each kind of component lives, how its file
 is laid out, how it exports, and what else every file of that kind exports.
 Follow the one that matches where the component is going, and open its `example`
-before writing.
+before writing. In a shape's `file`, `{Name}` is the PascalCase name and
+`{name}` its kebab-case spelling: `{name}/{Name}.vue` means
+`dialog-header/DialogHeader.vue`.
 
 A shape is not a style preference. A module that exports `default` where the
 project exports a named `Component`, or that omits a `fields` its CMS requires,
