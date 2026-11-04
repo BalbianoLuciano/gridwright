@@ -178,7 +178,10 @@ the other, and nothing in the filesystem says which. `--yes` accepts the
 detection; no TTY means no prompt, so CI still works. When the detection is
 wrong and there is nobody to ask, say it on the command line:
 `--library <dir>` sets the library and `--placement <kind>=<dir>`, repeated once
-per kind, sets where a module, view, layout, primitive or overlay goes.
+per kind, sets where a module, view, layout, primitive or overlay goes. Both
+take a path relative to the project root, and both are refused outright if they
+point outside it — a pasted absolute path used to be silently turned into a
+relative one that was not there.
 
 **2. `gw build <url>`.** Fetch, distill, resolve, write tokens, scaffold the
 library, survey what already exists. Everything a program can decide, decided —

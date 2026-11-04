@@ -9,7 +9,7 @@
  */
 
 import { existsSync, readFileSync, appendFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { join, dirname, basename, resolve } from 'node:path'
+import { join, dirname, basename, resolve, isAbsolute } from 'node:path'
 import {
   DEFAULT_CONFIG, writeConfig, configPath, loadConfig, validateConfig,
   gitignoreBlock, paths, type GridwrightConfig, type Framework,
@@ -38,7 +38,7 @@ export function parsePlacementFlags(raw: string[]): Placement[] {
   for (const entry of raw) {
     const eq = entry.indexOf('=')
     const kind = eq === -1 ? entry : entry.slice(0, eq)
-    const dir = eq === -1 ? '' : normalizeDir(entry.slice(eq + 1))
+    const dir = eq === -1 ? '' : normalizeDir(entry.slice(eq + 1), '--placement')
     if (!kind || !dir) {
       throw new Error(`--placement needs <kind>=<dir>, got "${entry}". Example: --placement view=resources/js/views`)
     }
@@ -55,16 +55,35 @@ export function parsePlacementFlags(raw: string[]): Placement[] {
   return out
 }
 
-/** Same cleanup the prompt applies to a typed path: relative to the root, no
- *  leading `./` and no trailing slash. */
-function normalizeDir(dir: string): string {
-  return dir.trim().replace(/^\.?\//, '').replace(/\/+$/, '')
+/**
+ * Same cleanup the prompt applies to a typed path: relative to the root, no
+ * leading `./` and no trailing slash — and a refusal for what it cannot clean.
+ *
+ * It was `.replace(/^\.?\//, '')`, which strips the leading slash off an
+ * absolute path rather than refusing it: `--library "$(pwd)/src/ui"` wrote
+ * `Users/me/app/src/ui` into the config, a relative path that is not there,
+ * and `init` still printed `Wrote …`. Nothing validates these — `validateConfig`
+ * checks the verify weights and the viewports — so the first sign was `author`
+ * failing with a directory nobody had typed. A pasted absolute path is the
+ * likeliest way to get this flag wrong, and `detectLibraryDir` only ever
+ * returns directories that exist, so the flag was weaker than what it replaces.
+ */
+function normalizeDir(dir: string, flag: string): string {
+  const given = dir.trim()
+  if (isAbsolute(given) || /^[A-Za-z]:[\\/]/.test(given)) {
+    throw new Error(`${flag} takes a path relative to the project root, got "${given}"`)
+  }
+  const clean = given.replace(/^\.?\//, '').replace(/\/+$/, '')
+  if (clean.split('/').includes('..')) {
+    throw new Error(`${flag} cannot leave the project root, got "${given}"`)
+  }
+  return clean
 }
 
 export async function init(root: string, opts: InitOptions = {}): Promise<void> {
   // Before anything is read or written: a typo in a flag should cost nothing.
   const given = parsePlacementFlags(opts.placements ?? [])
-  const libraryFlag = opts.library === undefined ? undefined : normalizeDir(opts.library)
+  const libraryFlag = opts.library === undefined ? undefined : normalizeDir(opts.library, '--library')
   if (libraryFlag === '') throw new Error('--library needs a directory, e.g. --library src/components/ui')
 
   if (existsSync(configPath(root)) && !opts.force) {
@@ -89,10 +108,22 @@ export async function init(root: string, opts: InitOptions = {}): Promise<void> 
   if (lib) {
     config.library = { dir: lib, barrel: join(lib, 'index.ts'), registry: join(lib, 'registry.json') }
   }
+  if (libraryFlag && !existsSync(join(root, libraryFlag))) {
+    warn(`--library ${libraryFlag} does not exist — no shape can be read from it`)
+  }
 
   // Where a component goes is half the question; how it is written is the
   // other half, and the answer is in the components already there.
-  const conventions = detectConventions(root)
+  //
+  // The library directory goes in by name. `detectConventions` reads a fixed
+  // list plus the placement directories, and `--library` sets no placement — so
+  // a library the fixed list does not know, which is the only reason to pass
+  // the flag, had no shape read from it at all. `verify` then matched the
+  // component against the portal's shape and `library:register` omitted the
+  // export shape: the harness mounting `default` in a project that exports a
+  // name, which is the failure the comment in `conventions.ts` is about.
+  const alsoRead = lib ? [lib] : []
+  const conventions = detectConventions(root, undefined, alsoRead)
 
   // The one thing gridwright is allowed to ask about. Everything else here is
   // inferred, because a question whose answer is in the repo is a question that
@@ -100,7 +131,7 @@ export async function init(root: string, opts: InitOptions = {}): Promise<void> 
   // reliable way: `modules`, `blocks`, `sections`, `partials`, `layouts` — every
   // ecosystem picks a few and no two pick the same few, and guessing silently
   // is how a header ends up filed as a page module.
-  conventions.placements = await setupPlacements(conventions.placements, opts.yes ?? false, given)
+  conventions.placements = await setupPlacements(root, conventions.placements, opts.yes ?? false, given)
 
   // Read the shapes again from the directories that are actually going into
   // the config. A person who picks `templates/partials` over the detected
@@ -108,7 +139,7 @@ export async function init(root: string, opts: InitOptions = {}): Promise<void> 
   // they turned down and none for the one they chose — and a missing shape is
   // how the harness ends up mounting `default` in a project that exports a name.
   if (conventions.placements.some((p) => p.from === 'asked')) {
-    const settled = detectConventions(root, conventions.placements)
+    const settled = detectConventions(root, conventions.placements, alsoRead)
     conventions.shapes = settled.shapes
     conventions.importExtension = settled.importExtension
   }
@@ -141,6 +172,7 @@ export async function init(root: string, opts: InitOptions = {}): Promise<void> 
  * in it.
  */
 async function setupPlacements(
+  root: string,
   proposed: Placement[],
   acceptAll: boolean,
   given: Placement[] = [],
@@ -149,7 +181,10 @@ async function setupPlacements(
   // detection for that kind, and is not asked about again.
   const detected = proposed.map((p) => given.find((g) => g.kind === p.kind) ?? p)
   const found = detected.filter((p) => p.from === 'found')
-  const missing = detected.filter((p) => p.from === 'absent')
+  // Not `from === 'absent'`: a placement given by flag is `asked`, so the one
+  // line of `--yes` output that says which of these paths are intentions rather
+  // than facts was leaving out exactly the ones the person had just typed.
+  const missing = detected.filter((p) => p.from === 'absent' || !existsSync(join(root, p.dir)))
 
   console.log()
   console.log(`  ${bold('Where each kind of thing goes')}`)

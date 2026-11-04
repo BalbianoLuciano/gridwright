@@ -83,3 +83,80 @@ describe('gw init --library / --placement', () => {
     await expect(init(repo, { yes: true, placements: ['view=a', 'view=b'] })).rejects.toThrow(/twice/)
   })
 })
+
+/**
+ * The flag set `library.dir` and nothing else. `detectConventions` builds its
+ * candidate list from a fixed array plus the placement directories, so a
+ * library nowhere on that list — which is the whole reason the flag exists —
+ * got no shape read from it. Downstream, `verify` matched the component against
+ * the portal's shape and `library:register` omitted `exportShape` entirely:
+ * the "harness mounts `default` in a project that exports a name" failure the
+ * comment in `conventions.ts` was written about.
+ */
+describe('the library directory is read for its shape, wherever it is', () => {
+  const inPatterns = (name: string, body: string) =>
+    writeFileSync(join(repo, 'Modules/Programs/resources/js/patterns', name), body)
+
+  it('--library reads the shape of the directory it names', async () => {
+    inPatterns('Btn.vue', '<template><button /></template>\n')
+    inPatterns('Chip.vue', '<template><span /></template>\n')
+
+    await init(repo, { yes: true, library: 'Modules/Programs/resources/js/patterns' })
+
+    const dirs = readConfig().conventions.shapes.map((s: { dir: string }) => s.dir)
+    expect(dirs).toContain('Modules/Programs/resources/js/patterns')
+  })
+
+  it('warns when the directory it names is not there', async () => {
+    const lines: string[] = []
+    vi.mocked(console.log).mockImplementation((...args) => { lines.push(args.join(' ')) })
+    await init(repo, { yes: true, library: 'Modules/Programs/resources/js/nope' })
+    expect(lines.join('\n')).toContain('does not exist')
+  })
+})
+
+/**
+ * `normalizeDir` was `.replace(/^\.?\//, '')`, which strips the leading slash
+ * off an absolute path instead of refusing it: `--library "$(pwd)/src/ui"`
+ * wrote `Users/me/.../src/ui` into the config — a relative path that is not
+ * there — and `init` still printed `Wrote …`. `validateConfig` checks the
+ * verify weights and nothing about these, so the failure surfaced at `author`.
+ * `detectLibraryDir` only ever returns directories that exist, so the flag was
+ * strictly weaker than the detection it replaces.
+ */
+describe('a flag cannot point outside the project', () => {
+  it.each([
+    ['--library', { library: '/Users/me/app/src/ui' }, 'relative to the project root'],
+    ['--placement', { placements: ['view=/var/www/views'] }, 'relative to the project root'],
+  ])('%s rejects an absolute path', async (_flag, opts, message) => {
+    await expect(init(repo, { yes: true, ...opts })).rejects.toThrow(message)
+    expect(existsSync(join(repo, 'gridwright.config.json'))).toBe(false)
+  })
+
+  it.each([
+    ['--library', { library: '../shared/ui' }],
+    ['--placement', { placements: ['module=../shared/blocks'] }],
+  ])('%s rejects a path that leaves the root', async (_flag, opts) => {
+    await expect(init(repo, { yes: true, ...opts })).rejects.toThrow('cannot leave the project root')
+    expect(existsSync(join(repo, 'gridwright.config.json'))).toBe(false)
+  })
+})
+
+// The one line of `--yes` output that says which paths are intentions rather
+// than facts counted only `absent`, and a flag-given placement is `asked`. It
+// undercounted exactly the directories the person had just typed.
+it('counts a flag-given directory that does not exist yet', async () => {
+  const lines: string[] = []
+  vi.mocked(console.log).mockImplementation((...args) => { lines.push(args.join(' ')) })
+
+  await init(repo, { yes: true, placements: ['module=brand/new/dir'] })
+
+  const notice = lines.find((l) => l.includes('do not exist yet'))!
+  const withFlag = Number(notice.trim().split(' ')[0])
+
+  lines.length = 0
+  await init(repo, { yes: true, force: true })
+  const base = Number(lines.find((l) => l.includes('do not exist yet'))!.trim().split(' ')[0])
+
+  expect(withFlag).toBe(base)
+})
