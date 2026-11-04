@@ -119,6 +119,50 @@ describe('learning how a project writes components', () => {
     expect(shape).toMatchObject({ file: '{Name}/{Name}.vue', seenIn: 2 })
   })
 
+  // `patterns/dialog/Dialog.vue`, `components/button/Button.vue`: a kebab-case
+  // folder around a PascalCase file. The layout came back as `{Name}/{Name}.vue`,
+  // which with `Name=Button` resolves to `Button/Button.vue`: a folder that
+  // does not exist next to the ones that do, in a project that is case-sensitive
+  // everywhere but on the laptop it was written on.
+  it('reads a kebab-case folder around a PascalCase file as its own layout', () => {
+    for (const n of ['Dialog', 'Button']) {
+      file(`src/modules/${n.toLowerCase()}/${n}.vue`, '<template><div /></template>\n')
+    }
+
+    const shape = detectConventions(root).shapes.find((s) => s.dir === 'src/modules')!
+    expect(shape).toMatchObject({ file: '{name}/{Name}.vue', seenIn: 2 })
+    expect(pathFor(shape, 'DialogHeader')).toBe('src/modules/dialog-header/DialogHeader.vue')
+  })
+
+  it('keeps `{Name}` for a folder and a file that agree', () => {
+    file('src/modules/Intro/Intro.vue', '<template><div /></template>\n')
+    file('src/modules/Hero/Hero.vue', '<template><div /></template>\n')
+
+    const shape = detectConventions(root).shapes.find((s) => s.dir === 'src/modules')!
+    expect(shape.file).toBe('{Name}/{Name}.vue')
+  })
+
+  it('writes the kebab-case folder in front of an index file', () => {
+    for (const n of ['hero-banner', 'pricing-table']) file(`src/modules/${n}/index.vue`, '<template><div /></template>\n')
+
+    const shape = detectConventions(root).shapes.find((s) => s.dir === 'src/modules')!
+    expect(shape.file).toBe('{name}/index.vue')
+    expect(pathFor(shape, 'ProofCards')).toBe('src/modules/proof-cards/index.vue')
+  })
+
+  // Configs written before `{name}` existed carry only `{Name}`.
+  it('fills in a `{Name}` template from an existing config the way it always did', () => {
+    const shape = { dir: 'src/modules', file: '{Name}/{Name}.tsx', export: 'default', alsoExports: [], seenIn: 1 }
+    expect(pathFor(shape, 'ProofCards')).toBe('src/modules/ProofCards/ProofCards.tsx')
+  })
+
+  it('derives the kebab-case spelling from a PascalCase name', () => {
+    const shape = { dir: 'src/modules', file: '{name}/{Name}.vue', export: 'default', alsoExports: [], seenIn: 1 }
+    expect(pathFor(shape, 'Dialog')).toBe('src/modules/dialog/Dialog.vue')
+    expect(pathFor(shape, 'DialogHeader')).toBe('src/modules/dialog-header/DialogHeader.vue')
+    expect(pathFor(shape, 'HTMLView')).toBe('src/modules/html-view/HTMLView.vue')
+  })
+
   // A folder called `utils` with an `index.ts` in it is not a component, and
   // the kebab spelling is what lets that in.
   it('does not take a helper folder for a component', () => {

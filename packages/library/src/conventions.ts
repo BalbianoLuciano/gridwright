@@ -24,7 +24,16 @@ import { folderComponent } from './files.js'
 export interface ComponentShape {
   /** Where this kind of component lives, relative to the project root. */
   dir: string
-  /** `{Name}.tsx` or `{Name}/index.tsx` — how the file is laid out. */
+  /**
+   * How the file is laid out: `{Name}.tsx`, `{Name}/index.tsx`,
+   * `{Name}/{Name}.tsx`, or `{name}/{Name}.vue`.
+   *
+   * `{Name}` is the component's PascalCase name and `{name}` its kebab-case
+   * spelling (`DialogHeader` → `dialog-header`). Two placeholders because a Vue
+   * project keeps `dialog-header/DialogHeader.vue`: folder and file spell the
+   * same name differently, and one placeholder could not say so. Configs that
+   * only carry `{Name}` stay valid.
+   */
   file: string
   /** `default`, or `named:Component` when the project exports by name. */
   export: string
@@ -231,16 +240,26 @@ function inferShape(root: string, dir: string): ComponentShape | null {
 
 /**
  * How a component's file sits in its directory: `{Name}.tsx`,
- * `{Name}/index.tsx`, or `{Name}/{Name}.tsx`.
+ * `{Name}/index.tsx`, `{Name}/{Name}.tsx`, or `{name}/{Name}.vue`.
  *
  * The third was missing. A folder per module holding `Intro/Intro.tsx` beside
  * its demo is as common as the `index` spelling, and not knowing it made the
  * whole directory look empty.
+ *
+ * The fourth is a Vue project's `button/Button.vue`. It used to be labelled
+ * `{Name}/{Name}.vue`, which for `Button` resolves to `Button/Button.vue`: a
+ * folder spelled differently from the ones the project has.
  */
 function layoutOf(dir: string, file: string): string {
   const ext = extname(file)
   if (dirname(file) === dir) return `{Name}${ext}`
-  return basename(file) === `index${ext}` ? `{Name}/index${ext}` : `{Name}/{Name}${ext}`
+
+  const base = basename(file, ext)
+  // A folder that starts lowercase is kebab-case; its placeholder says so.
+  const folder = /^[A-Z]/.test(basename(dirname(file))) ? '{Name}' : '{name}'
+  if (base === 'index') return `${folder}/index${ext}`
+  if (folder === '{name}' && /^[A-Z]/.test(base)) return `{name}/{Name}${ext}`
+  return `{Name}/{Name}${ext}`
 }
 
 /** One level deep plus the folder-per-component spellings from `files.ts`.
@@ -340,7 +359,15 @@ export function shapeFor(conventions: Conventions, dir: string): ComponentShape 
 /** Where a component of this shape goes, and under what name. */
 export function pathFor(shape: ComponentShape, name: string): string {
   // Every occurrence: `{Name}/{Name}.tsx` names the folder and the file.
-  return join(shape.dir, shape.file.replaceAll('{Name}', name))
+  return join(shape.dir, shape.file.replaceAll('{Name}', name).replaceAll('{name}', kebabCase(name)))
+}
+
+/** `DialogHeader` → `dialog-header`, `HTMLView` → `html-view`. */
+function kebabCase(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+    .toLowerCase()
 }
 
 function bump(map: Map<string, number>, key: string): [string, number] {
