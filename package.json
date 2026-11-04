@@ -19,7 +19,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b",
     "gw": "node packages/cli/dist/index.js",
-    "link:cli": "pnpm build && cd packages/cli && npm link"
+    "link:cli": "pnpm install && pnpm build && cd packages/cli && npm link"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
