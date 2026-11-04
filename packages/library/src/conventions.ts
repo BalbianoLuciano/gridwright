@@ -248,7 +248,8 @@ function inferShape(root: string, dir: string): ComponentShape | null {
  *
  * The fourth is a Vue project's `button/Button.vue`. It used to be labelled
  * `{Name}/{Name}.vue`, which for `Button` resolves to `Button/Button.vue`: a
- * folder spelled differently from the ones the project has.
+ * folder spelled differently from the ones the project has. The same went for
+ * `hero-banner/hero-banner.vue`, which is `{name}/{name}.vue`.
  */
 function layoutOf(dir: string, file: string): string {
   const ext = extname(file)
@@ -258,7 +259,7 @@ function layoutOf(dir: string, file: string): string {
   // A folder that starts lowercase is kebab-case; its placeholder says so.
   const folder = /^[A-Z]/.test(basename(dirname(file))) ? '{Name}' : '{name}'
   if (base === 'index') return `${folder}/index${ext}`
-  if (folder === '{name}' && /^[A-Z]/.test(base)) return `{name}/{Name}${ext}`
+  if (folder === '{name}') return `{name}/${/^[A-Z]/.test(base) ? '{Name}' : '{name}'}${ext}`
   return `{Name}/{Name}${ext}`
 }
 

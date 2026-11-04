@@ -116,7 +116,10 @@ describe('learning how a project writes components', () => {
     }
 
     const shape = detectConventions(root).shapes.find((s) => s.dir === 'src/modules')!
-    expect(shape).toMatchObject({ file: '{Name}/{Name}.vue', seenIn: 2 })
+    expect(shape).toMatchObject({ file: '{name}/{name}.vue', seenIn: 2 })
+    // `{Name}/{Name}.vue` here wrote `ProofCards/ProofCards.vue` beside the
+    // `hero-banner/hero-banner.vue` the project actually has.
+    expect(pathFor(shape, 'ProofCards')).toBe('src/modules/proof-cards/proof-cards.vue')
   })
 
   // `patterns/dialog/Dialog.vue`, `components/button/Button.vue`: a kebab-case
