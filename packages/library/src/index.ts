@@ -11,6 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, extname } from 'node:path'
 import { paths, type Framework, type GridwrightConfig } from '@gridwright/core'
+import { isSingleFileComponent } from './files.js'
 
 export * from './placement.js'
 export * from './fonts.js'
@@ -193,7 +194,7 @@ function addToBarrel(
   // the convention came back '' and the barrel exported './button/Button', which
   // Vite does not resolve. The convention only speaks for `.ts`/`.tsx`.
   const file = extname(componentPath)
-  const keepsExtension = file === '.vue' || file === '.svelte'
+  const keepsExtension = isSingleFileComponent(componentPath)
   const ext = keepsExtension ? '' : (config.conventions?.importExtension ?? '')
 
   let spec = relative(dirname(barrel), componentPath).replace(/\\/g, '/')
@@ -206,8 +207,6 @@ function addToBarrel(
   if (!spec.startsWith('.')) spec = `./${spec}`
   spec += ext
 
-  if (current.includes(`from '${spec}'`)) return undefined
-
   // Re-export what the file actually exports. A barrel pulling a default out of
   // a module that exports a named `Component` fails at import time, in the
   // consumer, with an error that names neither file.
@@ -215,8 +214,38 @@ function addToBarrel(
   const line = named
     ? `export { ${named} as ${name} } from '${spec}'`
     : `export { default as ${name} } from '${spec}'`
+
+  // Dedupe by the name the barrel exports, not by the specifier. Every Vue
+  // project registered before the extension fix has `from './button/Button'`
+  // in here; the specifier is now `./button/Button.vue`, so comparing the
+  // whole string found no match and appended a second
+  // `export { default as Button }` — which TypeScript and esbuild both reject.
+  // The upgrade path ended in a barrel that would not parse.
+  const lines = current.split('\n')
+  const at = lines.findIndex((l) => exportedNames(l).includes(name))
+  if (at !== -1) {
+    // One line can export several names. Rewriting it to correct this one's
+    // path would silently drop the others, so a barrel the project wrote by
+    // hand is left as it is: the name is already exported.
+    if (lines[at] === line || exportedNames(lines[at]!).length > 1) return undefined
+    lines[at] = line
+    writeFileSync(barrel, `${lines.join('\n').trimEnd()}\n`)
+    return line
+  }
+
   writeFileSync(barrel, `${current.trimEnd()}\n${line}\n`)
   return line
+}
+
+/** The names a barrel line exports, as a consumer importing from it sees them:
+ *  the alias after `as`, or the identifier itself when there is none. */
+function exportedNames(line: string): string[] {
+  const clause = line.match(/^\s*export\s*\{([^}]*)\}\s*from\s/)
+  if (!clause) return []
+  return clause[1]!
+    .split(',')
+    .map((part) => part.trim().split(/\s+as\s+/).pop()!.trim())
+    .filter(Boolean)
 }
 
 function sortKeys(registry: Registry): Registry {

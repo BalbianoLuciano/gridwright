@@ -117,6 +117,43 @@ describe('library:register', () => {
       registerComponent(root, config, { name: 'Button', componentPath: path, figma, props: [], tokens: [] })
       expect(barrelOf().match(/Button\.vue/g)).toHaveLength(1)
     })
+
+    /**
+     * The upgrade path. Every Vue project that registered a component with the
+     * release before this fix has `from './button/Button'` in its barrel. The
+     * dedupe compared the whole specifier, so the new `.vue` spelling did not
+     * match it and was appended: two `export { default as Button }` lines, which
+     * TypeScript and esbuild both reject. The barrel this PR fixes stopped
+     * parsing on the first re-register.
+     */
+    it('corrects the extensionless line an earlier release wrote', () => {
+      ensureLibrary(root, config)
+      const barrel = join(root, 'src/components/ui/index.ts')
+      writeFileSync(barrel, `export { default as Button } from './button/Button'\n`)
+
+      registerComponent(root, config, {
+        name: 'Button', componentPath: sfc('button', 'Button.vue'), figma, props: [], tokens: [],
+      })
+
+      expect(barrelOf().match(/as Button\b/g)).toHaveLength(1)
+      expect(barrelOf()).toContain("from './button/Button.vue'")
+    })
+
+    // A barrel the project wrote by hand can export several names from one
+    // line. Replacing that line to correct the path would drop the others, so
+    // a name already exported is left exactly as it is.
+    it('leaves a hand-written line that exports more than this name', () => {
+      ensureLibrary(root, config)
+      const barrel = join(root, 'src/components/ui/index.ts')
+      const hand = `export { Button, ButtonGroup } from './button'\n`
+      writeFileSync(barrel, hand)
+
+      registerComponent(root, config, {
+        name: 'Button', componentPath: sfc('button', 'Button.vue'), figma, props: [], tokens: [],
+      })
+
+      expect(barrelOf()).toBe(hand)
+    })
   })
 
   /**
