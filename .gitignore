@@ -10,3 +10,19 @@ dist/
 coverage/
 .gridwright/runs/
 .gridwright/dashboard/
+
+# MyJarbis is local tooling, not part of what this package ships.
+# Its SQLite memory, its generated skills and commands, and the per-machine
+# settings all belong to this checkout only.
+.myjarbis/
+.claude/settings.local.json
+.claude/commands/jarbis*.md
+.claude/skills/myjarbis-*/
+
+# Its installer writes a plugin manifest into `.claude-plugin/`, which is where
+# gridwright keeps its own marketplace.json — the one the README's
+# `/plugin marketplace add` depends on. Those files declare another project
+# (myjarbis, github.com/braiantroncoso/myjarbis) and must not ship from here.
+.claude-plugin/plugin.json
+.claude-plugin/hooks/
+.claude-plugin/scripts/
