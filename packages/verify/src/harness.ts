@@ -14,6 +14,7 @@
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { join, relative, isAbsolute, dirname, resolve as resolvePath } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { createServer as createNetServer } from 'node:net'
 import type { ViteDevServer } from 'vite'
 import type { Framework } from '@gridwright/core'
 
@@ -82,7 +83,9 @@ export async function startHarness(opts: HarnessOptions): Promise<Harness> {
       root: dir,
       logLevel: 'error',
       server: {
-        port: opts.port ?? 0,   // 0 lets the OS pick, so parallel runs do not collide
+        // Not `0`: Vite 6 treats a falsy port as its default and lands on 5173,
+        // which Docker dev servers and a harness still closing both hold.
+        port: opts.port ?? await freePort(),
         strictPort: false,
         host: '127.0.0.1',
         // The component and its CSS live above the harness root. A stylesheet
@@ -115,6 +118,19 @@ export async function startHarness(opts: HarnessOptions): Promise<Harness> {
       rmSync(dir, { recursive: true, force: true })
     },
   }
+}
+
+/** A port the OS says is free right now, asked for by binding port 0 ourselves. */
+export function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createNetServer()
+    probe.once('error', reject)
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      probe.close(() => (port ? resolve(port) : reject(new Error('The OS gave no free port.'))))
+    })
+  })
 }
 
 /**

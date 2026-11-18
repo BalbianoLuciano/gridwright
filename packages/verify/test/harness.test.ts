@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   findProjectCss, resolveProjectCss, harnessFsAllow, projectDependsOn, resolveProjectModule,
-  tailwindSourceStylesheet, viteConfig, indexHtml, entryName, resolveProjectAliases,
+  tailwindSourceStylesheet, viteConfig, indexHtml, entryName, resolveProjectAliases, freePort,
 } from '../src/harness.js'
 
 let root: string
@@ -252,5 +252,31 @@ describe('resolving the project\'s path aliases', () => {
     const config = viteConfig({ projectRoot: root, framework: 'vue3' })
     expect(config).toContain(JSON.stringify(join(root, 'Modules/Programs/resources/js')))
     expect(config.indexOf('@modules/programs')).toBeLessThan(config.indexOf('"@"'))
+  })
+})
+
+/**
+ * `port: 0` was meant to let the OS pick, but the project's Vite 6 reads a falsy
+ * port as "use the default" and the harness landed on 5173 — where a Docker
+ * dev server often already listens (on IPv6, so the IPv4 bind still succeeds),
+ * and where a harness that is still closing from the previous run is. About one
+ * run in six came back "rendered nothing". The port is now picked here.
+ */
+describe('the harness picks its own port', () => {
+  it('returns a real, bindable port', async () => {
+    const port = await freePort()
+    expect(port).toBeGreaterThan(0)
+  })
+
+  it('does not hand out a port that is taken', async () => {
+    const { createServer } = await import('node:net')
+    const taken = await freePort()
+    const holder = createServer()
+    await new Promise<void>((r) => holder.listen(taken, '127.0.0.1', r))
+    try {
+      expect(await freePort()).not.toBe(taken)
+    } finally {
+      await new Promise((r) => holder.close(r))
+    }
   })
 })
