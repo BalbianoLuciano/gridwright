@@ -32,6 +32,8 @@ export interface VerifyOptions {
   referencePng?: string
   props?: Record<string, unknown>
   css?: string[]
+  /** `verify.alias` from the config. */
+  alias?: Record<string, string>
   /** How the component exports itself, from the project's own conventions. */
   exportShape?: string
   /** This run's own harness directory, so runs can verify at the same time. */
@@ -82,6 +84,7 @@ export async function verify(opts: VerifyOptions): Promise<VerifyResult> {
     component: opts.component,
     props: opts.props,
     css,
+    ...(opts.alias ? { alias: opts.alias } : {}),
     ...(opts.exportShape ? { exportShape: opts.exportShape } : {}),
     ...(opts.harnessDir ? { dir: opts.harnessDir } : {}),
   })

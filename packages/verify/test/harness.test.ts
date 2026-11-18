@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   findProjectCss, resolveProjectCss, harnessFsAllow, projectDependsOn, resolveProjectModule,
-  tailwindSourceStylesheet, viteConfig,
+  tailwindSourceStylesheet, viteConfig, indexHtml, entryName, resolveProjectAliases, freePort,
 } from '../src/harness.js'
 
 let root: string
@@ -164,5 +164,119 @@ describe('rendering a Vite 8 + Tailwind v4 project', () => {
     expect(tailwindSourceStylesheet(dir, root, [join(root, 'src/app.css')])).toBeNull()
     expect(tailwindSourceStylesheet(dir, root, [join(root, 'dist/output.css')])).toBeNull()
     expect(tailwindSourceStylesheet(dir, root, [])).toBeNull()
+  })
+})
+
+/**
+ * `gw verify` on a Vue component failed every time with "The component
+ * rendered nothing". The page loaded `/entry.jsx` while the Vue entry is
+ * written as `entry.js`: Vite answered 404 for the module, the app never
+ * mounted, and a correct component was scored as an empty one.
+ */
+describe('the page loads the entry the harness actually writes', () => {
+  const loaded = (html: string) => /<script type="module" src="\/([^"]+)"/.exec(html)?.[1]
+
+  it.each(['vue3', 'react19'] as const)('names the %s entry in the page', (framework) => {
+    expect(loaded(indexHtml(framework))).toBe(entryName(framework))
+  })
+
+  it('keeps the two frameworks on different entry files', () => {
+    expect(entryName('vue3')).toBe('entry.js')
+    expect(entryName('react19')).toBe('entry.jsx')
+  })
+})
+
+/**
+ * The harness only knew `@` -> `<root>/src`. A project that imports through
+ * `@modules/programs/...` (and whose `@` is not `src` at all) failed to resolve
+ * every such import, and the render came back blank. The project already says
+ * where its aliases point, in `tsconfig.json` `paths`; the harness does not
+ * load the project's own vite.config, so that is where they are read from.
+ */
+describe('resolving the project\'s path aliases', () => {
+  const tsconfig = (body: string) => file('tsconfig.json', body)
+
+  it('reads `paths` wildcards as prefix aliases, relative to the tsconfig', () => {
+    tsconfig(JSON.stringify({ compilerOptions: { paths: {
+      '@modules/programs/*': ['./Modules/Programs/resources/js/*'],
+      '@/*': ['./resources/js/*'],
+    } } }))
+    expect(resolveProjectAliases(root)).toEqual({
+      '@modules/programs': join(root, 'Modules/Programs/resources/js'),
+      '@': join(root, 'resources/js'),
+    })
+  })
+
+  it('resolves against baseUrl when there is one', () => {
+    tsconfig(JSON.stringify({ compilerOptions: { baseUrl: 'src', paths: { '~/*': ['app/*'] } } }))
+    expect(resolveProjectAliases(root)).toEqual({ '~': join(root, 'src/app') })
+  })
+
+  it('tolerates comments and trailing commas, which tsconfig allows', () => {
+    tsconfig(`{
+      // the alias the editor uses
+      "compilerOptions": { "paths": { "@/*": ["./src/*",], /* x */ }, },
+    }`)
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'src') })
+  })
+
+  it('keeps a url-looking value with // inside a string', () => {
+    tsconfig('{ "$schema": "https://json.schemastore.org/tsconfig", "compilerOptions": { "paths": { "@/*": ["./a/*"] } } }')
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'a') })
+  })
+
+  it('falls back to jsconfig.json, and to the old `@` -> src when nothing says otherwise', () => {
+    file('jsconfig.json', JSON.stringify({ compilerOptions: { paths: { '@/*': ['./web/*'] } } }))
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'web') })
+    rmSync(join(root, 'jsconfig.json'))
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'src') })
+  })
+
+  it('lets verify.alias win over the tsconfig, relative to the project root', () => {
+    tsconfig(JSON.stringify({ compilerOptions: { paths: { '@/*': ['./resources/js/*'] } } }))
+    expect(resolveProjectAliases(root, { '@': 'other/js', '@lib': 'packages/lib' })).toEqual({
+      '@': join(root, 'other/js'),
+      '@lib': join(root, 'packages/lib'),
+    })
+  })
+
+  it('does not choke on a tsconfig it cannot parse', () => {
+    tsconfig('{ not json')
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'src') })
+  })
+
+  it('writes every alias into the generated vite config, longest first', () => {
+    tsconfig(JSON.stringify({ compilerOptions: { paths: {
+      '@/*': ['./resources/js/*'], '@modules/programs/*': ['./Modules/Programs/resources/js/*'],
+    } } }))
+    const config = viteConfig({ projectRoot: root, framework: 'vue3' })
+    expect(config).toContain(JSON.stringify(join(root, 'Modules/Programs/resources/js')))
+    expect(config.indexOf('@modules/programs')).toBeLessThan(config.indexOf('"@"'))
+  })
+})
+
+/**
+ * `port: 0` was meant to let the OS pick, but the project's Vite 6 reads a falsy
+ * port as "use the default" and the harness landed on 5173 — where a Docker
+ * dev server often already listens (on IPv6, so the IPv4 bind still succeeds),
+ * and where a harness that is still closing from the previous run is. About one
+ * run in six came back "rendered nothing". The port is now picked here.
+ */
+describe('the harness picks its own port', () => {
+  it('returns a real, bindable port', async () => {
+    const port = await freePort()
+    expect(port).toBeGreaterThan(0)
+  })
+
+  it('does not hand out a port that is taken', async () => {
+    const { createServer } = await import('node:net')
+    const taken = await freePort()
+    const holder = createServer()
+    await new Promise<void>((r) => holder.listen(taken, '127.0.0.1', r))
+    try {
+      expect(await freePort()).not.toBe(taken)
+    } finally {
+      await new Promise((r) => holder.close(r))
+    }
   })
 })

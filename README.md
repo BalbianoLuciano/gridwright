@@ -5,7 +5,7 @@ component comes out, registered in the project's design system. Point it at a
 whole page and it builds the page, section by section. Driven from Claude Code.
 
 [![license: MIT](https://img.shields.io/badge/license-MIT-16a34a)](LICENSE)
-![tests: 328](https://img.shields.io/badge/tests-328%20passing-16a34a)
+![tests: 328](https://img.shields.io/badge/tests-342%20passing-16a34a)
 
 > **The design comes in as a node and leaves as a system.**
 >
@@ -498,6 +498,13 @@ renders unstyled and scores like a bad component. A project that calls its
 stylesheet something else names it in the config: `"verify": { "css":
 ["src/main.css"] }`.
 
+**It resolves the project's path aliases.** The harness never loads the
+project's own `vite.config` (a config is code), so `@/…` or `@modules/x/…`
+imports are read from `compilerOptions.paths` in `tsconfig.json` (then
+`jsconfig.json`). A project that keeps them only in its `vite.config` names them
+in the config, relative to the project root, and that wins: `"verify": { "alias":
+{ "@": "resources/js" } }`.
+
 **Nodes are matched by their `data-gw`, not by position.** Matching on tree
 position cannot work — a component does not reproduce Figma's tree, and a Figma
 button carries six levels of instance wrappers no sane developer writes. So a
@@ -663,7 +670,7 @@ fails your build has done something worse than nothing.
 
 ```bash
 pnpm install
-pnpm test        # 328 tests
+pnpm test        # 342 tests
 pnpm typecheck
 pnpm build
 ```
