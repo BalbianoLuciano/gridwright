@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   findProjectCss, resolveProjectCss, harnessFsAllow, projectDependsOn, resolveProjectModule,
-  tailwindSourceStylesheet, viteConfig,
+  tailwindSourceStylesheet, viteConfig, indexHtml, entryName,
 } from '../src/harness.js'
 
 let root: string
@@ -164,5 +164,24 @@ describe('rendering a Vite 8 + Tailwind v4 project', () => {
     expect(tailwindSourceStylesheet(dir, root, [join(root, 'src/app.css')])).toBeNull()
     expect(tailwindSourceStylesheet(dir, root, [join(root, 'dist/output.css')])).toBeNull()
     expect(tailwindSourceStylesheet(dir, root, [])).toBeNull()
+  })
+})
+
+/**
+ * `gw verify` on a Vue component failed every time with "The component
+ * rendered nothing". The page loaded `/entry.jsx` while the Vue entry is
+ * written as `entry.js`: Vite answered 404 for the module, the app never
+ * mounted, and a correct component was scored as an empty one.
+ */
+describe('the page loads the entry the harness actually writes', () => {
+  const loaded = (html: string) => /<script type="module" src="\/([^"]+)"/.exec(html)?.[1]
+
+  it.each(['vue3', 'react19'] as const)('names the %s entry in the page', (framework) => {
+    expect(loaded(indexHtml(framework))).toBe(entryName(framework))
+  })
+
+  it('keeps the two frameworks on different entry files', () => {
+    expect(entryName('vue3')).toBe('entry.js')
+    expect(entryName('react19')).toBe('entry.jsx')
   })
 })

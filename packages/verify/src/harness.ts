@@ -64,7 +64,7 @@ export async function startHarness(opts: HarnessOptions): Promise<Harness> {
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(dir, { recursive: true })
 
-  writeFileSync(join(dir, 'index.html'), indexHtml())
+  writeFileSync(join(dir, 'index.html'), indexHtml(opts.framework))
   const stylesheet = tailwindSourceStylesheet(dir, opts.projectRoot, opts.css ?? [])
   if (stylesheet) writeFileSync(join(dir, 'harness.css'), stylesheet)
   const css = stylesheet ? [join(dir, 'harness.css')] : opts.css
@@ -114,7 +114,12 @@ export async function startHarness(opts: HarnessOptions): Promise<Harness> {
   }
 }
 
-function indexHtml(): string {
+/**
+ * The page names the entry through `entryName`, the same function that decides
+ * what the file is called on disk. It used to hard-code `entry.jsx`, so a Vue
+ * harness wrote `entry.js` and loaded a module that did not exist.
+ */
+export function indexHtml(framework: Framework): string {
   // No page margin and no max-width: the component's own box is what gets
   // measured, and a stray 8px body margin would shift every box in the render.
   return `<!doctype html>
@@ -129,17 +134,14 @@ function indexHtml(): string {
   </head>
   <body>
     <div id="gw-root"></div>
-    <script type="module" src="/${entryNamePlaceholder}"></script>
+    <script type="module" src="/${entryName(framework)}"></script>
   </body>
 </html>
-`.replace(entryNamePlaceholder, ENTRY_TSX)
+`
 }
 
-const ENTRY_TSX = 'entry.jsx'
-const entryNamePlaceholder = '__ENTRY__'
-
-function entryName(framework: Framework): string {
-  return framework === 'vue3' ? 'entry.js' : ENTRY_TSX
+export function entryName(framework: Framework): string {
+  return framework === 'vue3' ? 'entry.js' : 'entry.jsx'
 }
 
 /**
