@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   findProjectCss, resolveProjectCss, harnessFsAllow, projectDependsOn, resolveProjectModule,
-  tailwindSourceStylesheet, viteConfig, indexHtml, entryName,
+  tailwindSourceStylesheet, viteConfig, indexHtml, entryName, resolveProjectAliases,
 } from '../src/harness.js'
 
 let root: string
@@ -183,5 +183,74 @@ describe('the page loads the entry the harness actually writes', () => {
   it('keeps the two frameworks on different entry files', () => {
     expect(entryName('vue3')).toBe('entry.js')
     expect(entryName('react19')).toBe('entry.jsx')
+  })
+})
+
+/**
+ * The harness only knew `@` -> `<root>/src`. A project that imports through
+ * `@modules/programs/...` (and whose `@` is not `src` at all) failed to resolve
+ * every such import, and the render came back blank. The project already says
+ * where its aliases point, in `tsconfig.json` `paths`; the harness does not
+ * load the project's own vite.config, so that is where they are read from.
+ */
+describe('resolving the project\'s path aliases', () => {
+  const tsconfig = (body: string) => file('tsconfig.json', body)
+
+  it('reads `paths` wildcards as prefix aliases, relative to the tsconfig', () => {
+    tsconfig(JSON.stringify({ compilerOptions: { paths: {
+      '@modules/programs/*': ['./Modules/Programs/resources/js/*'],
+      '@/*': ['./resources/js/*'],
+    } } }))
+    expect(resolveProjectAliases(root)).toEqual({
+      '@modules/programs': join(root, 'Modules/Programs/resources/js'),
+      '@': join(root, 'resources/js'),
+    })
+  })
+
+  it('resolves against baseUrl when there is one', () => {
+    tsconfig(JSON.stringify({ compilerOptions: { baseUrl: 'src', paths: { '~/*': ['app/*'] } } }))
+    expect(resolveProjectAliases(root)).toEqual({ '~': join(root, 'src/app') })
+  })
+
+  it('tolerates comments and trailing commas, which tsconfig allows', () => {
+    tsconfig(`{
+      // the alias the editor uses
+      "compilerOptions": { "paths": { "@/*": ["./src/*",], /* x */ }, },
+    }`)
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'src') })
+  })
+
+  it('keeps a url-looking value with // inside a string', () => {
+    tsconfig('{ "$schema": "https://json.schemastore.org/tsconfig", "compilerOptions": { "paths": { "@/*": ["./a/*"] } } }')
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'a') })
+  })
+
+  it('falls back to jsconfig.json, and to the old `@` -> src when nothing says otherwise', () => {
+    file('jsconfig.json', JSON.stringify({ compilerOptions: { paths: { '@/*': ['./web/*'] } } }))
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'web') })
+    rmSync(join(root, 'jsconfig.json'))
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'src') })
+  })
+
+  it('lets verify.alias win over the tsconfig, relative to the project root', () => {
+    tsconfig(JSON.stringify({ compilerOptions: { paths: { '@/*': ['./resources/js/*'] } } }))
+    expect(resolveProjectAliases(root, { '@': 'other/js', '@lib': 'packages/lib' })).toEqual({
+      '@': join(root, 'other/js'),
+      '@lib': join(root, 'packages/lib'),
+    })
+  })
+
+  it('does not choke on a tsconfig it cannot parse', () => {
+    tsconfig('{ not json')
+    expect(resolveProjectAliases(root)).toEqual({ '@': join(root, 'src') })
+  })
+
+  it('writes every alias into the generated vite config, longest first', () => {
+    tsconfig(JSON.stringify({ compilerOptions: { paths: {
+      '@/*': ['./resources/js/*'], '@modules/programs/*': ['./Modules/Programs/resources/js/*'],
+    } } }))
+    const config = viteConfig({ projectRoot: root, framework: 'vue3' })
+    expect(config).toContain(JSON.stringify(join(root, 'Modules/Programs/resources/js')))
+    expect(config.indexOf('@modules/programs')).toBeLessThan(config.indexOf('"@"'))
   })
 })

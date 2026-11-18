@@ -106,6 +106,7 @@ export async function runVerify(root: string, args: VerifyArgs): Promise<void> {
     framework: config.framework,
     component,
     css,
+    ...(config.verify.alias ? { alias: config.verify.alias } : {}),
     ...(shape ? { exportShape: shape.export } : {}),
     // Its own harness directory. The shared one is deleted when a harness
     // starts and when it closes, so sections verifying at the same time took

@@ -92,6 +92,11 @@ export interface GridwrightConfig {
      *  order. Leave it out and `verify` looks for one under the usual names;
      *  set it when the project calls its stylesheet something else. */
     css?: string[]
+    /** Path aliases the component imports through, as `alias -> path relative
+     *  to the project root`. Leave it out and `verify` reads them from the
+     *  project's tsconfig/jsconfig `paths`; set it when they live only in a
+     *  vite.config, which the harness does not load. What it names wins. */
+    alias?: Record<string, string>
     /** Law 6. The weights add up to 1. Structural carries half because it is
      *  the only dimension without rendering noise. */
     weights: { structural: number; chromatic: number; perceptual: number }
@@ -197,6 +202,14 @@ export function validateConfig(c: GridwrightConfig): string[] {
       errors.push('verify.css has to be a list of paths: "css": ["src/main.css"]')
     } else if (c.verify.css.some((p) => typeof p !== 'string' || p.trim() === '')) {
       errors.push('verify.css has an entry that is not a path')
+    }
+  }
+  if (c.verify.alias !== undefined) {
+    const a = c.verify.alias as unknown
+    if (typeof a !== 'object' || a === null || Array.isArray(a)) {
+      errors.push('verify.alias has to be a map from an alias to a path: "alias": { "@": "resources/js" }')
+    } else if (Object.entries(a).some(([k, v]) => k.trim() === '' || typeof v !== 'string' || v.trim() === '')) {
+      errors.push('verify.alias has an entry that is not a path')
     }
   }
   return errors

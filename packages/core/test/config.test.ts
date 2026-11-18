@@ -27,6 +27,20 @@ describe('config — Law 9', () => {
     expect(validateConfig(c)).toEqual([])
   })
 
+  // Same hand-edited shape as `verify.css`: an array of pairs, or a path that
+  // is not a string, would otherwise surface as a broken generated vite config.
+  it('rejects a verify.alias that is not a map of paths', () => {
+    const c = structuredClone(DEFAULT_CONFIG)
+    ;(c.verify as { alias?: unknown }).alias = ['@', 'src']
+    expect(validateConfig(c)[0]).toMatch(/map from an alias to a path/)
+
+    ;(c.verify as { alias?: unknown }).alias = { '@': 3 }
+    expect(validateConfig(c)[0]).toMatch(/not a path/)
+
+    c.verify.alias = { '@': 'resources/js' }
+    expect(validateConfig(c)).toEqual([])
+  })
+
   it('structural carries half: it is the only dimension without rendering noise', () => {
     expect(DEFAULT_CONFIG.verify.weights.structural).toBe(0.5)
   })

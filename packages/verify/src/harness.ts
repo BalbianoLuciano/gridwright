@@ -12,7 +12,7 @@
  */
 
 import { mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs'
-import { join, relative, isAbsolute, dirname } from 'node:path'
+import { join, relative, isAbsolute, dirname, resolve as resolvePath } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ViteDevServer } from 'vite'
 import type { Framework } from '@gridwright/core'
@@ -41,6 +41,9 @@ export interface HarnessOptions {
    *  Tailwind output — without it every utility class is inert and the render
    *  is a column of unstyled text. */
   css?: string[]
+  /** `verify.alias` from the config: alias -> path relative to the project
+   *  root. Wins over what the tsconfig says. */
+  alias?: Record<string, string>
   port?: number
   /**
    * Where to generate the harness. Defaults to `.gridwright/harness/`.
@@ -183,7 +186,7 @@ createRoot(document.getElementById('gw-root')).render(
 `
 }
 
-export function viteConfig(opts: Pick<HarnessOptions, 'projectRoot' | 'framework'>): string {
+export function viteConfig(opts: Pick<HarnessOptions, 'projectRoot' | 'framework' | 'alias'>): string {
   // The plugin is resolved from the project, not from gridwright: the component
   // has to compile against the same React or Vue version the project ships.
   const plugin = opts.framework === 'vue3'
@@ -202,13 +205,101 @@ ${tailwind ? "import tailwindcss from '@tailwindcss/vite'\n" : ''}import { defin
 export default defineConfig({
   plugins: [plugin()${tailwind ? ', tailwindcss()' : ''}],
   resolve: {
-    alias: { '@': ${JSON.stringify(join(opts.projectRoot, 'src'))} },
+    // The project's own aliases: the harness does not load its vite.config, so
+    // an '@modules/x' import would otherwise fail to resolve and the render come back blank.
+    alias: ${JSON.stringify(orderedAliases(resolveProjectAliases(opts.projectRoot, opts.alias)))},
     // Without this the component and the harness load two copies of the
     // framework, and the render silently comes up blank.
     dedupe: ['react', 'react-dom', 'vue'],
   },
 })
 `
+}
+
+/** Longest key first: a prefix alias must not shadow a more specific one. As an
+ *  array of `{ find, replacement }` Vite keeps the order it is given. */
+function orderedAliases(aliases: Record<string, string>): Array<{ find: string; replacement: string }> {
+  return Object.entries(aliases)
+    .sort(([a], [b]) => b.length - a.length)
+    .map(([find, replacement]) => ({ find, replacement }))
+}
+
+/**
+ * The path aliases the component imports through, as `alias -> absolute path`.
+ *
+ * The harness is a Vite of its own and never loads the project's vite.config —
+ * a config is code, and running it would run the project's plugins. So the
+ * aliases are read from the one place a project states them as data:
+ * `tsconfig.json` (then `jsconfig.json`) `compilerOptions.paths`, which the
+ * editor and the type checker already depend on staying true. `configured`
+ * (`verify.alias`) covers a project that only has them in vite.config, and
+ * wins. With nothing found the old `@` -> `src` guess is kept.
+ */
+export function resolveProjectAliases(
+  projectRoot: string,
+  configured?: Record<string, string>,
+): Record<string, string> {
+  const found: Record<string, string> = {}
+  for (const name of ['tsconfig.json', 'jsconfig.json']) {
+    const read = readPaths(join(projectRoot, name))
+    if (!read) continue
+    for (const [pattern, targets] of Object.entries(read.paths)) {
+      const target = targets[0]
+      if (typeof target !== 'string') continue
+      // `@/*` -> `./src/*` is the prefix `@`; an exact `x` -> `./y` is `x`.
+      const wild = pattern.endsWith('/*') && target.endsWith('/*')
+      const key = wild ? pattern.slice(0, -2) : pattern
+      if (pattern.includes('*') && !wild) continue
+      const path = wild ? target.slice(0, -2) : target
+      found[key] ??= resolvePath(read.base, path)
+    }
+    if (Object.keys(found).length > 0) break
+  }
+
+  const aliases = Object.keys(found).length > 0 ? found : { '@': join(projectRoot, 'src') }
+  for (const [key, path] of Object.entries(configured ?? {})) {
+    aliases[key] = isAbsolute(path) ? path : join(projectRoot, path)
+  }
+  return aliases
+}
+
+/** `paths` and the directory they are relative to (`baseUrl`, else the tsconfig's own). */
+function readPaths(file: string): { paths: Record<string, string[]>; base: string } | null {
+  if (!existsSync(file)) return null
+  try {
+    const parsed = JSON.parse(stripJsonc(readFileSync(file, 'utf8'))) as {
+      compilerOptions?: { baseUrl?: string; paths?: Record<string, string[]> }
+    }
+    const opts = parsed.compilerOptions
+    if (!opts?.paths) return null
+    const dir = dirname(file)
+    return { paths: opts.paths, base: opts.baseUrl ? resolvePath(dir, opts.baseUrl) : dir }
+  } catch {
+    return null
+  }
+}
+
+/** tsconfig is JSON with comments and trailing commas; strings are left alone. */
+function stripJsonc(src: string): string {
+  let out = ''
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]!
+    if (c === '"') {
+      let j = i + 1
+      while (j < src.length && src[j] !== '"') j += src[j] === '\\' ? 2 : 1
+      out += src.slice(i, j + 1)
+      i = j
+    } else if (c === '/' && src[i + 1] === '/') {
+      while (i < src.length && src[i] !== '\n') i++
+      out += '\n'
+    } else if (c === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2)
+      i = end === -1 ? src.length : end + 1
+    } else {
+      out += c
+    }
+  }
+  return out.replace(/,(\s*[}\]])/g, '$1')
 }
 
 /** The project, plus wherever the stylesheets it named actually live. */
